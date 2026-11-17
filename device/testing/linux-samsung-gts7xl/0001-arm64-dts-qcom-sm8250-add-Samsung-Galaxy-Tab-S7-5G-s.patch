@@ -1,0 +1,75 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Tue, 17 Nov 2026 07:53:59 +0700
+Subject: [PATCH] arm64: dts: qcom: sm8250: add Samsung Galaxy Tab S7+ 5G
+ skeleton
+
+Phase 0 skeleton for the Galaxy Tab S7+ 5G (SM-T976B, gts7xl): SoC and
+PMIC includes, msm-id and board-ids taken from the stock boot image so the
+bootloader accepts the DTB. Hardware nodes come in later patches.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../devicetree/bindings/arm/qcom.yaml         |  1 +
+ arch/arm64/boot/dts/qcom/Makefile             |  1 +
+ .../boot/dts/qcom/sm8250-samsung-gts7xl.dts   | 27 +++++++++++++++++++
+ 3 files changed, 29 insertions(+)
+ create mode 100644 arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+
+diff --git a/Documentation/devicetree/bindings/arm/qcom.yaml b/Documentation/devicetree/bindings/arm/qcom.yaml
+index ff8a35df7..751eb8add 100644
+--- a/Documentation/devicetree/bindings/arm/qcom.yaml
++++ b/Documentation/devicetree/bindings/arm/qcom.yaml
+@@ -1103,6 +1103,7 @@ properties:
+               - qcom,qrb5165-rb5
+               - qcom,sm8250-hdk
+               - qcom,sm8250-mtp
++              - samsung,gts7xl
+               - samsung,r8q
+               - samsung,x1q
+               - sony,pdx203-generic
+diff --git a/arch/arm64/boot/dts/qcom/Makefile b/arch/arm64/boot/dts/qcom/Makefile
+index 1c86e7e98..d5ac0c856 100644
+--- a/arch/arm64/boot/dts/qcom/Makefile
++++ b/arch/arm64/boot/dts/qcom/Makefile
+@@ -364,6 +364,7 @@ dtb-$(CONFIG_ARCH_QCOM)	+= sm8150-sony-xperia-kumano-bahamut.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sm8150-sony-xperia-kumano-griffin.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sm8250-hdk.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sm8250-mtp.dtb
++dtb-$(CONFIG_ARCH_QCOM)	+= sm8250-samsung-gts7xl.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sm8250-samsung-r8q.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sm8250-samsung-x1q.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sm8250-sony-xperia-edo-pdx203.dtb
+diff --git a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+new file mode 100644
+index 000000000..0c25bcb16
+--- /dev/null
++++ b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+@@ -0,0 +1,27 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Samsung Galaxy Tab S7+ 5G (SM-T976B, gts7xl) — phase 0 skeleton.
++ * Phase 1 adds reserved-memory, regulators, UFS, USB, simple-framebuffer, keys, ramoops.
++ */
++/dts-v1/;
++
++#include "sm8250.dtsi"
++#include "pm8150.dtsi"
++#include "pm8150b.dtsi"
++#include "pm8150l.dtsi"
++
++/ {
++	model = "Samsung Galaxy Tab S7+ 5G";
++	compatible = "samsung,gts7xl", "qcom,sm8250";
++	chassis-type = "tablet";
++
++	/* Values copied from reference/ids.txt (stock T976BXXS7DXH1). */
++	qcom,msm-id = <0x164 0x20001>;
++	qcom,board-id = <0 0>, <8 0>, <8 1>, <8 2>, <8 3>, <8 4>, <8 5>, <8 6>;
++
++	chosen {
++		#address-cells = <2>;
++		#size-cells = <2>;
++		ranges;
++	};
++};

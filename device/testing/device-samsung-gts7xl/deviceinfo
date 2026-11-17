@@ -11,11 +11,18 @@ deviceinfo_external_storage="true"
 deviceinfo_screen_width="1752"
 deviceinfo_screen_height="2800"
 deviceinfo_getty="ttyMSM0;115200"
-deviceinfo_kernel_cmdline="console=ttyMSM0,115200 console=tty0 PMOS_NO_OUTPUT_REDIRECT"
+deviceinfo_kernel_cmdline="console=ttyMSM0,115200 console=tty0 clk_ignore_unused pd_ignore_unused panic=5 PMOS_NO_OUTPUT_REDIRECT"
 deviceinfo_generate_bootimg="true"
 deviceinfo_header_version="2"
 deviceinfo_bootimg_qcdt="false"
-deviceinfo_flash_method="heimdall-bootimg"
+# UFS with 4096-byte logical blocks (sda37 = userdata): the nested GPT of the
+# rootfs image must use the same sector size or the initramfs finds no subpartitions.
+deviceinfo_rootfs_image_sector_size="4096"
+# "none": pmbootstrap flasher must never write to this device (it would flash the
+# unsigned boot.img without the disabled vbmeta). The only flash path is
+# tools/flash.sh in the gts7xl-mainline repo; the partition names below are
+# kept as documentation.
+deviceinfo_flash_method="none"
 deviceinfo_flash_heimdall_partition_kernel="BOOT"
 deviceinfo_flash_heimdall_partition_rootfs="USERDATA"
 deviceinfo_flash_pagesize="4096"

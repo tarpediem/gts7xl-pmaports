@@ -2,7 +2,7 @@
 pkgname=device-samsung-gts7xl
 pkgdesc="Samsung Galaxy Tab S7+ 5G"
 pkgver=1
-pkgrel=0
+pkgrel=2
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -14,5 +14,5 @@ source="deviceinfo"
 build() { devicepkg_build $startdir $pkgname; }
 package() { devicepkg_package $startdir $pkgname; }
 sha512sums="
-855763cc039253932baa037c61a0e3f9917e115056a69363a4b532894261e960e5d15d17ca7566ef49b28a989e2242ba2e33ea7238f5f848adeb33d92d222449  deviceinfo
+d6cea9529ab230df02a1c86fd41a5450f2555b2aa48b0d413381fd4ecd2ca03c89ad5893a7b37a11f6efedd38672a1319740948f0914dfe593fa76d3d9d4cb5c  deviceinfo
 "
