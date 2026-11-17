@@ -2,7 +2,7 @@
 # Kernel config based on: linux-postmarketos-qcom-sm8250 (refreshed with olddefconfig)
 pkgname=linux-samsung-gts7xl
 pkgver=7.3.4
-pkgrel=2
+pkgrel=3
 pkgdesc="Mainline kernel for Samsung Galaxy Tab S7+ 5G (gts7xl)"
 arch="aarch64"
 _carch="arm64"
@@ -30,6 +30,7 @@ source="https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-$pkgver.tar.xz
 	config-$_flavor.$arch
 	0001-arm64-dts-qcom-sm8250-add-Samsung-Galaxy-Tab-S7-5G-s.patch
 	0002-arm64-dts-qcom-sm8250-samsung-gts7xl-memory-map-psto.patch
+	0003-Input-pm8941-pwrkey-select-the-warm-PS_HOLD-reset-at.patch
 	"
 builddir="$srcdir/linux-$pkgver"
 
@@ -71,7 +72,8 @@ package() {
 }
 sha512sums="
 db5508c3cf8b613b4680022eb785c036bcf8a5c952f8d0b2f3c2c7dc16779cf8bd954e0bca0b0b52451bac61430a687ae73205574f002f3b60de886640ebb9b0  linux-7.3.4.tar.xz
-a6009e4baa7efa6d0da4892109dc298975964ada56a6b0b662d67b683bd95c1410006180ec8c1e46e45653b5f5f978722664fe2fb4dc0a9b7b1b12109e3039af  config-samsung-gts7xl.aarch64
+d4d21ecc957b7a080f684ac1c5b4d3cf7ec0ab9e01d8f5e55136a964d7f7f182ab948400aae8ee5e2b926678eaf7f8d1524c3dcd18058af81620737a718af648  config-samsung-gts7xl.aarch64
 7a204395b5be27b4af1828cd46ab6753288b0157bb01cdc46a6d3953ba23ea0b5300ab1bec7fac5730abb989dcd1eb6f53c411631cdbde136eafe81a4492ace0  0001-arm64-dts-qcom-sm8250-add-Samsung-Galaxy-Tab-S7-5G-s.patch
 e9e85e11505b5c2d0a3433d40c98005cf1aa6bb95569ade6dbef41f6537faf0724c79f1acc1d53c2281290fcba6573d7283ad745c59e8921c2221b63cca0dddf  0002-arm64-dts-qcom-sm8250-samsung-gts7xl-memory-map-psto.patch
+cd923fabbb4fec9421cae5a7fd9b9c4e1f09099f42e622e5be437f30c422fa932f5091b84ce8bf665e1fa297f40b28b542fdf9ffbac47b103ffc9fb67456c682  0003-Input-pm8941-pwrkey-select-the-warm-PS_HOLD-reset-at.patch
 "
