@@ -1,1 +1,3 @@
 /usr/sbin/i2ctransfer
+/usr/sbin/kexec
+/usr/share/gts7xl/initramfs-modprobe.conf:/etc/modprobe.d/gts7xl-initramfs.conf
