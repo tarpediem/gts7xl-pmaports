@@ -1,0 +1,45 @@
+From 4cb39cb882e2774420cd4a63afb2b58716ce3142 Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Tue, 17 Nov 2026 11:34:29 +0700
+Subject: [PATCH] arm64: dts: qcom: sm8250-samsung-gts7xl: L13A on the PLDO
+ voltage grid
+
+3300000 uV is not a PMIC5 PLDO step (1504000 + n * 8000). The regulator
+core rejected the constraints, the whole PM8150 RPMh regulator device
+failed to probe, and r7 lost DSI and USB. Use 3296000 uV, the nearest
+step below the stock 3.3 V.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts | 13 ++++++++++---
+ 1 file changed, 10 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+index cace7ae71..acca73ef7 100644
+--- a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
++++ b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+@@ -293,11 +293,18 @@ vreg_l12a_1p8: ldo12 {
+ 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+ 		};
+ 
+-		/* touchscreen AVDD ("pm8150_l13" in the stock touch node) */
++		/*
++		 * Touchscreen AVDD ("pm8150_l13" in the stock touch node).
++		 * Stock asks 3300000 uV, which is not on the PMIC5 PLDO grid
++		 * (1504000 + n * 8000): mainline rejects it and the whole
++		 * regulator device fails to probe. 3296000 is the nearest
++		 * step below (the PMIC has no 3.300 V step: whatever the stock
++		 * 3300 mV request lands on is a grid value too).
++		 */
+ 		vreg_l13a_3p3: ldo13 {
+ 			regulator-name = "vreg_l13a_3p3";
+-			regulator-min-microvolt = <3300000>;
+-			regulator-max-microvolt = <3300000>;
++			regulator-min-microvolt = <3296000>;
++			regulator-max-microvolt = <3296000>;
+ 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+ 		};
+ 
+-- 
+2.56.0
+

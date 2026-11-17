@@ -2,7 +2,7 @@
 # Kernel config based on: linux-postmarketos-qcom-sm8250 (refreshed with olddefconfig)
 pkgname=linux-samsung-gts7xl
 pkgver=7.3.4
-pkgrel=8
+pkgrel=9
 pkgdesc="Mainline kernel for Samsung Galaxy Tab S7+ 5G (gts7xl)"
 arch="aarch64"
 _carch="arm64"
@@ -41,6 +41,7 @@ source="https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-$pkgver.tar.xz
 	0011-arm64-dts-qcom-sm8250-samsung-gts7xl-enable-the-touc.patch
 	0012-Input-stmfts1b-probe-asynchronously-bound-the-polls.patch
 	0013-arm64-dts-qcom-sm8250-samsung-gts7xl-touch-bus-witho.patch
+	0014-arm64-dts-qcom-sm8250-samsung-gts7xl-L13A-on-the-PLD.patch
 	"
 builddir="$srcdir/linux-$pkgver"
 
@@ -96,4 +97,5 @@ cd923fabbb4fec9421cae5a7fd9b9c4e1f09099f42e622e5be437f30c422fa932f5091b84ce8bf66
 336d7c49bd48f7d60d2fe1a5fd5e9ba1f448b1325bce679cf94a65b9eb0d681c12508618c30786fc4e3fb79d93f74421a01656f51d15e8ecdca77d9b9049b751  0011-arm64-dts-qcom-sm8250-samsung-gts7xl-enable-the-touc.patch
 139966478c61c4eef882e0412f175091d96ba7b2c4479a3ba28db585e3b78a112db4125e708a3f759d65c2752468295d9e3fd1133bc0953f31af149b3d41ce3b  0012-Input-stmfts1b-probe-asynchronously-bound-the-polls.patch
 1249c1d5bbdfc83001b9405ac7994571be8066796eecf48ca3e85d90850b476be5f3ba8ca5053be361f368f329370e8c3fa18517460942d93ae726c39f571149  0013-arm64-dts-qcom-sm8250-samsung-gts7xl-touch-bus-witho.patch
+6aa5d889c10784d5cdf2d6e3fc8a7e276c0e8d7b7a9fdf14af6579add721ad3c937211a7dcc69f17d04e61797c202a5ef1b625331e7c8351cb4aaf414401ad11  0014-arm64-dts-qcom-sm8250-samsung-gts7xl-L13A-on-the-PLD.patch
 "
