@@ -1,0 +1,34 @@
+From 36208b21adea9384e6fd5e605b98cd9bcb05cce6 Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Tue, 17 Nov 2026 19:26:04 +0700
+Subject: [PATCH 29/29] arm64: dts: qcom: sm8250-samsung-gts7xl: 1.8 A input on
+ a wall charger
+
+1800 mA (stock cable-info default_input_current) when BC1.2 detects a
+dedicated charging port; 475 mA stays the limit for every other cable.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+index 2af9af63c..8ea5132b0 100644
+--- a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
++++ b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+@@ -534,6 +534,12 @@ max77705_charger: charger@69 {
+ 		io-channels = <&pm8150l_adc ADC5_AMUX_THM1_100K_PU>;
+ 		io-channel-names = "battery-temp";
+ 		input-current-limit-microamp = <475000>;
++		/*
++		 * Wall charger (BC1.2 DCP, read from the USB-C block): 1800 mA,
++		 * the stock cable-info default_input_current (0x708). Battery-side
++		 * limits are unchanged; anything not positively a DCP gets 475 mA.
++		 */
++		maxim,dcp-input-current-limit-microamp = <1800000>;
+ 		maxim,safety-timer-sec = <36000>;
+ 	};
+ 
+-- 
+2.56.0
+
