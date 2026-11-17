@@ -2,7 +2,7 @@
 # Kernel config based on: linux-postmarketos-qcom-sm8250 (refreshed with olddefconfig)
 pkgname=linux-samsung-gts7xl
 pkgver=7.3.4
-pkgrel=5
+pkgrel=6
 pkgdesc="Mainline kernel for Samsung Galaxy Tab S7+ 5G (gts7xl)"
 arch="aarch64"
 _carch="arm64"
@@ -34,6 +34,8 @@ source="https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-$pkgver.tar.xz
 	0004-arm64-dts-qcom-sm8250-samsung-gts7xl-keep-the-bootlo.patch
 	0005-drm-panel-add-Samsung-S6TUUM3-AMSA24VU01-panel-drive.patch
 	0006-arm64-dts-qcom-sm8250-samsung-gts7xl-enable-the-disp.patch
+	0007-drm-panel-s6tuum3-always-reset-on-first-enable-never.patch
+	0008-arm64-dts-qcom-sm8250-samsung-gts7xl-100-ms-minimum-.patch
 	"
 builddir="$srcdir/linux-$pkgver"
 
@@ -82,4 +84,6 @@ cd923fabbb4fec9421cae5a7fd9b9c4e1f09099f42e622e5be437f30c422fa932f5091b84ce8bf66
 181e155e35668fdb8014557e3c47978712d5b8ff4847459c8dc4f040d0c04bf143ed7f81a15f53ca92537d88c48b453a4c63cb6ad09242e27bff0c920d1256b0  0004-arm64-dts-qcom-sm8250-samsung-gts7xl-keep-the-bootlo.patch
 325f2eea7404a77465e6ecb32adb1d5729287fdd3029ad2b2434a1e7317d6f787cf840d36ebeffbd05270e6f1e2af2813f765f4a270cb10299fc7c578da34aa9  0005-drm-panel-add-Samsung-S6TUUM3-AMSA24VU01-panel-drive.patch
 02c2e9c95c5e3681f920ce2ce6befd2271b428aab67d1d9a3b57d06c269d0e001404adc40deeb83c745c086cd109fd21c66bc10550384d98da0b1f664854c3bb  0006-arm64-dts-qcom-sm8250-samsung-gts7xl-enable-the-disp.patch
+8b2cdd3833970efba5d917b1d645765127688974939320288d756d87cdbd390b66e3306dd74ece4a8c8280739ada2b34f7aafe82aaa6fe567705d2520b8348c1  0007-drm-panel-s6tuum3-always-reset-on-first-enable-never.patch
+74390aee7d224d8905acae8df6055fc369518a6f14baacbad2d3788688d01b116d640693a7dbb84a31cd1e9b27140bae4cec94b98966ff6b706705f0b17ff055  0008-arm64-dts-qcom-sm8250-samsung-gts7xl-100-ms-minimum-.patch
 "
