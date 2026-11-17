@@ -5,10 +5,10 @@
 #   tools/extract-gpu-zap.py BL_T976B<...>.tar.md5 build/firmware-gpu
 #   cp build/firmware-gpu/a650_zap.mbn <pmaports>/device/testing/firmware-samsung-gts7xl-gpu/
 # (tools/ is in https://github.com/tarpediem/gts7xl-mainline), then build this package.
-# The sha512 below is the one of T976BXXS7DXH1's NON-HLOS image/a650_zap.{mdt,b00-b02}
+# pkgver = build date of T976BXXS7DXH1; the sha512 below is the one of its NON-HLOS image/a650_zap.{mdt,b00-b02}
 # joined with tools/pil-squash.py.
 pkgname=firmware-samsung-gts7xl-gpu
-pkgver=7dxh1
+pkgver=20240802
 pkgrel=0
 pkgdesc="Samsung Galaxy Tab S7+ 5G Adreno 650 zap shader (local build only)"
 url="https://github.com/tarpediem/gts7xl-mainline"
