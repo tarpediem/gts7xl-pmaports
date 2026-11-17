@@ -1,0 +1,18 @@
+# Reference: <https://postmarketos.org/devicepkg>
+pkgname=device-samsung-gts7xl
+pkgdesc="Samsung Galaxy Tab S7+ 5G"
+pkgver=1
+pkgrel=0
+url="https://postmarketos.org"
+license="MIT"
+arch="aarch64"
+options="!check !archcheck"
+depends="postmarketos-base linux-samsung-gts7xl mkbootimg"
+makedepends="devicepkg-dev"
+source="deviceinfo"
+
+build() { devicepkg_build $startdir $pkgname; }
+package() { devicepkg_package $startdir $pkgname; }
+sha512sums="
+2dfe7db4a0061d8da5b017d9365cffe51d403562b0a6d6aa228b9e906e2ef791e16dba0ea6c293b201e7896a64a1a5c3ecb8f4fff5ee3ed2d5985af8ef174911  deviceinfo
+"

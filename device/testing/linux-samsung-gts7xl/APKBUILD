@@ -1,0 +1,32 @@
+# Maintainer: tarpediem <tarpediem@gmail.com>
+pkgname=linux-samsung-gts7xl
+pkgver=7.3.4
+pkgrel=0
+pkgdesc="Mainline kernel for Samsung Galaxy Tab S7+ 5G (gts7xl)"
+arch="aarch64"
+_carch="arm64"
+_flavor="samsung-gts7xl"
+url="https://kernel.org"
+license="GPL-2.0-only"
+options="!strip !check !tracedeps pmb:cross-native"
+makedepends="bash bc bison devicepkg-dev findutils flex openssl-dev perl gmp-dev mpc1-dev mpfr-dev"
+source="https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-$pkgver.tar.xz
+	config-$_flavor.$arch"
+builddir="$srcdir/linux-$pkgver"
+
+prepare() {
+	default_prepare
+	cp "$srcdir/config-$_flavor.$arch" .config
+}
+
+build() {
+	unset LDFLAGS
+	make ARCH="$_carch" CC="${CC:-gcc}" KBUILD_BUILD_VERSION="$((pkgrel + 1 ))-postmarketOS"
+}
+
+package() {
+	downstreamkernel_package "$builddir" "$pkgdir" "$_carch" "$_flavor" "$pkgver"
+	make dtbs_install O="$builddir" INSTALL_DTBS_PATH="$pkgdir/boot/dtbs"
+}
+sha512sums="SKIP
+SKIP"
