@@ -2,7 +2,7 @@
 pkgname=device-samsung-gts7xl
 pkgdesc="Samsung Galaxy Tab S7+ 5G"
 pkgver=1
-pkgrel=11
+pkgrel=12
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -13,7 +13,8 @@ makedepends="devicepkg-dev"
 subpackages="$pkgname-sshd-keyonly:sshd_keyonly:noarch
 	$pkgname-bluetooth:bluetooth:noarch
 	$pkgname-polkit:polkit_rules:noarch
-	$pkgname-console:console:noarch"
+	$pkgname-console:console:noarch
+	$pkgname-nonfree-firmware:nonfree_firmware:noarch"
 source="deviceinfo
 	00-gts7xl-usb-muic.sh
 	50-gts7xl-modules.sh
@@ -81,6 +82,14 @@ polkit_rules() {
 	depends="polkit"
 	install -Dm644 "$srcdir"/gts7xl-wheel.rules \
 		"$subpkgdir"/usr/share/polkit-1/rules.d/40-gts7xl-wheel.rules
+}
+
+nonfree_firmware() {
+	pkgdesc="GPU firmware: Adreno 650 SQE/GMU (linux-firmware) and the device zap shader"
+	# firmware-samsung-gts7xl-gpu is built locally only (Samsung-signed file,
+	# see its APKBUILD); without it the GPU stays off (zap load fails), display works.
+	depends="linux-firmware-qcom firmware-samsung-gts7xl-gpu"
+	mkdir -p "$subpkgdir"
 }
 
 console() {

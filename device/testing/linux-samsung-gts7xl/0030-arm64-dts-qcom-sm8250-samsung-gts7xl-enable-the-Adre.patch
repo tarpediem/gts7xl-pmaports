@@ -1,0 +1,57 @@
+From 90b41160d26ea51709101f447c62e0d95aaae439 Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Tue, 17 Nov 2026 19:08:49 +0700
+Subject: [PATCH] arm64: dts: qcom: sm8250-samsung-gts7xl: enable the Adreno
+ 650 GPU
+
+Enable the GMU and the GPU. The zap shader is signed for this device:
+the stock NON-HLOS partition ships it as image/a650_zap.{mdt,b00..b02};
+joined into one file it is loaded from
+qcom/sm8250/samsung/gts7xl/a650_zap.mbn. The SQE and GMU firmware are
+the linux-firmware ones. gpu_mem already sits at the stock pil_gpu
+region (0x9031a000, 8 KiB).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../boot/dts/qcom/sm8250-samsung-gts7xl.dts    | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+index 8ea5132b0..ce07ad261 100644
+--- a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
++++ b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+@@ -489,6 +489,16 @@ vreg_s8c_1p35: smps8 {
+  * The PCA9468 direct charger (0x57) is left out on purpose: no driver, so
+  * the high-current path stays off.
+  */
++/*
++ * Adreno 650. The zap shader is Samsung-signed: it comes from the stock
++ * NON-HLOS (modem) partition, image/a650_zap.{mdt,bNN}, joined into one
++ * file; it is not in linux-firmware. reserved gpu_mem above is the stock
++ * pil_gpu region.
++ */
++&gmu {
++	status = "okay";
++};
++
+ /*
+  * QUPv3_0 GPI, for i2c5. The stock tree uses an EE offset of 0x1000 here
+  * (qcom,gpi-ee-offset in the live DT); with the sm8250 default of 0 every
+@@ -500,6 +510,14 @@ &gpi_dma0 {
+ 	status = "okay";
+ };
+ 
++&gpu {
++	status = "okay";
++};
++
++&gpu_zap_shader {
++	firmware-name = "qcom/sm8250/samsung/gts7xl/a650_zap.mbn";
++};
++
+ &i2c0 {
+ 	status = "okay";
+ 
+-- 
+2.56.0
+

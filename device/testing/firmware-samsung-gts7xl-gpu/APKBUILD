@@ -1,0 +1,27 @@
+# Adreno 650 zap shader of the Samsung Galaxy Tab S7+ 5G (SM-T976B).
+#
+# Not redistributable: it is signed for this device and only exists in Samsung's
+# firmware. The file is NOT in this repository. Make it locally from the stock BL tar:
+#   tools/extract-gpu-zap.py BL_T976B<...>.tar.md5 build/firmware-gpu
+#   cp build/firmware-gpu/a650_zap.mbn <pmaports>/device/testing/firmware-samsung-gts7xl-gpu/
+# (tools/ is in https://github.com/tarpediem/gts7xl-mainline), then build this package.
+# The sha512 below is the one of T976BXXS7DXH1's NON-HLOS image/a650_zap.{mdt,b00-b02}
+# joined with tools/pil-squash.py.
+pkgname=firmware-samsung-gts7xl-gpu
+pkgver=7dxh1
+pkgrel=0
+pkgdesc="Samsung Galaxy Tab S7+ 5G Adreno 650 zap shader (local build only)"
+url="https://github.com/tarpediem/gts7xl-mainline"
+arch="aarch64"
+license="proprietary"
+options="!check !strip !archcheck !tracedeps"
+source="a650_zap.mbn"
+
+package() {
+	install -Dm644 "$srcdir"/a650_zap.mbn \
+		"$pkgdir"/lib/firmware/qcom/sm8250/samsung/gts7xl/a650_zap.mbn
+}
+
+sha512sums="
+b43dcb4f96a348f75018a6e227a5cda6f49ddb84c1b601144cd52bc322bc62c24caf168a647804b781427a373d2212e83e2b54cfe98aa529dc7e20ede8c280f6  a650_zap.mbn
+"

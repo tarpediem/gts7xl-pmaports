@@ -2,7 +2,7 @@
 # Kernel config based on: linux-postmarketos-qcom-sm8250 (refreshed with olddefconfig)
 pkgname=linux-samsung-gts7xl
 pkgver=7.3.4
-pkgrel=18
+pkgrel=19
 pkgdesc="Mainline kernel for Samsung Galaxy Tab S7+ 5G (gts7xl)"
 arch="aarch64"
 _carch="arm64"
@@ -62,6 +62,7 @@ source="https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-$pkgver.tar.xz
 	0027-power-supply-max77705-stop-charging-at-a-capacity-th.patch
 	0028-power-supply-max77705-input-limit-per-cable-type-BC1.patch
 	0029-arm64-dts-qcom-sm8250-samsung-gts7xl-1.8-A-input-on-.patch
+	0030-arm64-dts-qcom-sm8250-samsung-gts7xl-enable-the-Adre.patch
 	"
 builddir="$srcdir/linux-$pkgver"
 
@@ -134,4 +135,5 @@ c96ee8d111e75d319bf8ef1975d9c6bc9d8eaa5b1c89e17ea60494a7f8b6deff81eac85c54c53f86
 f974159e7be355bb357bcb380a11c308fc4232c715e69c98ee72ce6626efc7be62debe509ee5fc91487e353988274fde734562d2ee6efdf908d613919eecb2bb  0027-power-supply-max77705-stop-charging-at-a-capacity-th.patch
 6ddb1eafb447c7267d2b0c7802a677b86fa9673e61a189e102ba7cc8771136427b0e5a8643c0081541cb680d70541c5fc7fd448223ef85af39240ea4555345ca  0028-power-supply-max77705-input-limit-per-cable-type-BC1.patch
 fb0c9b2f33f796163cac65e8e53921a484fb49031ba0f2b41c714d1a459c6193ccd952aa8e308429a08e58c53f762fed21d057c171b6c27355e64b95d61c08b5  0029-arm64-dts-qcom-sm8250-samsung-gts7xl-1.8-A-input-on-.patch
+049c11617968418829123a7657045325fcebf1041a7ede1e8fc4e26175be30fba8be86fd16c6ba9904593fc5180736472389af4f9ad34b04cf43d37972e0358b  0030-arm64-dts-qcom-sm8250-samsung-gts7xl-enable-the-Adre.patch
 "
