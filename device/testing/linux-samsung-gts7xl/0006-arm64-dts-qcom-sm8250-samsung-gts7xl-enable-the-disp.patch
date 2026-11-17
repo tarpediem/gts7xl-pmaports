@@ -1,0 +1,179 @@
+From 657f2849325d3ae0092857c9af0cbc541e228f3a Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Tue, 17 Nov 2026 10:34:04 +0700
+Subject: [PATCH 6/6] arm64: dts: qcom: sm8250-samsung-gts7xl: enable the
+ display
+
+MDSS, DSI0 and its PHY with the S6TUUM3 AMSA24VU01 panel: octa-vdd
+supply on GPIO 135, reset on GPIO 82, TCON_RDY on GPIO 26, TE on GPIO 66.
+Pin states come from the stock device tree. The boot framebuffer keeps
+its power holds until the MSM driver takes over.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../boot/dts/qcom/sm8250-samsung-gts7xl.dts   | 121 ++++++++++++++++--
+ 1 file changed, 110 insertions(+), 11 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+index 1549255a3..937d80c36 100644
+--- a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
++++ b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+@@ -2,8 +2,8 @@
+ /*
+  * Samsung Galaxy Tab S7+ 5G (SM-T976B, gts7xl)
+  *
+- * Bring-up tree: memory map, pstore, boot framebuffer, keys, UFS and USB 2.0
+- * device mode. Every value comes from the device tree of the running stock
++ * Bring-up tree: memory map, pstore, boot framebuffer, display (MDSS, DSI0,
++ * S6TUUM3 panel), keys, UFS and USB 2.0 device mode. Every value comes from the device tree of the running stock
+  * kernel (T976BXXS7DXH1, board-id <8 6>) or from its kernel configuration.
+  */
+ /dts-v1/;
+@@ -52,15 +52,13 @@ chosen {
+ 
+ 		/*
+ 		 * Bootloader splash: 2800x1752 command-mode panel, left running
+-		 * by the ABL. There is no MDSS/DSI driver yet, so this node is
+-		 * the only consumer of what the DSI host needs to stay alive:
+-		 * the MDSS GDSC (else genpd sync_state collapses it once dispcc
+-		 * has no consumer left to wait for), MMCX at the level of the
+-		 * MDP clock the ABL left running (else rpmhpd sync_state drops
+-		 * it to the camcc vote) and the DSI 0.88 V / 1.2 V rails (L9A is
+-		 * shared with the UFS PHY, which switches it off on runtime
+-		 * suspend). The panel keeps its own power (GPIO 135) and reset
+-		 * (GPIO 82) as the ABL left them: nothing claims these pins.
++		 * by the ABL. Until the MDSS/DSI driver binds and removes this
++		 * framebuffer, it holds what the DSI host needs to stay alive:
++		 * the MDSS GDSC (else genpd sync_state collapses it), MMCX at
++		 * the level of the MDP clock the ABL left running (else rpmhpd
++		 * sync_state drops it to the camcc vote) and the DSI 0.88 V /
++		 * 1.2 V rails (L9A is shared with the UFS PHY, which switches
++		 * it off on runtime suspend).
+ 		 */
+ 		framebuffer: framebuffer@9c000000 {
+ 			compatible = "simple-framebuffer";
+@@ -76,6 +74,21 @@ framebuffer: framebuffer@9c000000 {
+ 		};
+ 	};
+ 
++	/*
++	 * Panel module supply ("octa-vdd" / vddlcd in the stock tree): one
++	 * enable, the module makes VDDI, VCI, ELVDD and ELVSS itself.
++	 */
++	vreg_panel: regulator-panel {
++		compatible = "regulator-fixed";
++		regulator-name = "octa-vdd";
++		gpio = <&tlmm 135 GPIO_ACTIVE_HIGH>;
++		enable-active-high;
++		regulator-boot-on;
++
++		pinctrl-names = "default";
++		pinctrl-0 = <&panel_vdd_en>;
++	};
++
+ 	gpio-keys {
+ 		compatible = "gpio-keys";
+ 
+@@ -296,6 +309,49 @@ &i2c0 {
+ 	status = "okay";
+ };
+ 
++&mdss {
++	status = "okay";
++};
++
++&mdss_dsi0 {
++	vdda-supply = <&vreg_l9a_1p2>;
++
++	pinctrl-names = "default";
++	pinctrl-0 = <&panel_te_active>;
++
++	status = "okay";
++
++	panel@0 {
++		compatible = "samsung,s6tuum3-amsa24vu01";
++		reg = <0>;
++
++		vddlcd-supply = <&vreg_panel>;
++		reset-gpios = <&tlmm 82 GPIO_ACTIVE_LOW>;
++		tcon-rdy-gpios = <&tlmm 26 GPIO_ACTIVE_HIGH>;
++
++		pinctrl-names = "default", "sleep";
++		pinctrl-0 = <&panel_reset_active>, <&panel_tcon_rdy_active>;
++		pinctrl-1 = <&panel_reset_suspend>, <&panel_tcon_rdy_suspend>;
++
++		port {
++			panel_in: endpoint {
++				remote-endpoint = <&mdss_dsi0_out>;
++			};
++		};
++	};
++};
++
++&mdss_dsi0_out {
++	data-lanes = <0 1 2 3>;
++	remote-endpoint = <&panel_in>;
++};
++
++&mdss_dsi0_phy {
++	vdds-supply = <&vreg_l5a_0p88>;
++
++	status = "okay";
++};
++
+ &pm8150l_gpios {
+ 	vol_up_n: vol-up-n-state {
+ 		pins = "gpio3";
+@@ -326,6 +382,49 @@ &removed_mem {
+ &tlmm {
+ 	/* SPI of the fingerprint sensor, owned by TrustZone */
+ 	gpio-reserved-ranges = <20 4>;
++
++	/* Pin states copied from the stock tree (pmx_sde*) */
++	panel_reset_active: panel-reset-active-state {
++		pins = "gpio82";
++		function = "gpio";
++		drive-strength = <8>;
++		bias-disable;
++	};
++
++	panel_reset_suspend: panel-reset-suspend-state {
++		pins = "gpio82";
++		function = "gpio";
++		drive-strength = <2>;
++		bias-pull-down;
++	};
++
++	panel_tcon_rdy_active: panel-tcon-rdy-active-state {
++		pins = "gpio26";
++		function = "gpio";
++		drive-strength = <8>;
++		bias-pull-down;
++	};
++
++	panel_tcon_rdy_suspend: panel-tcon-rdy-suspend-state {
++		pins = "gpio26";
++		function = "gpio";
++		drive-strength = <2>;
++		bias-pull-down;
++	};
++
++	panel_te_active: panel-te-active-state {
++		pins = "gpio66";
++		function = "mdp_vsync";
++		drive-strength = <2>;
++		bias-pull-down;
++	};
++
++	panel_vdd_en: panel-vdd-en-state {
++		pins = "gpio135";
++		function = "gpio";
++		drive-strength = <2>;
++		bias-pull-down;
++	};
+ };
+ 
+ &ufs_mem_hc {
+-- 
+2.56.0
+
