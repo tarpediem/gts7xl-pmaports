@@ -1,0 +1,43 @@
+From 50fbe0d8ab8d24c58a172904fa8a55b59531b9a2 Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Tue, 17 Nov 2026 13:36:07 +0700
+Subject: [PATCH] arm64: kexec: no kCFI check on the jump to the relocation
+ code
+
+With CONFIG_CFI, kexec -e oopses in machine_kexec(): the indirect call
+to kern_reloc first loads the type hash at target - 4 through the idmap
+installed in TTBR0, and that address is in the page before the
+relocation page, which is not mapped (level 3 translation fault at
+kern_reloc - 4, pc machine_kexec+0x12c = ldur w16, [x8, #-4]). The
+relocation code is copied from a SYM_CODE block and has no hash anyway.
+Mark machine_kexec() __nocfi, as swsusp_arch_resume() already is.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ arch/arm64/kernel/machine_kexec.c | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/kernel/machine_kexec.c b/arch/arm64/kernel/machine_kexec.c
+index 8f9bc2327..e66fbcc9d 100644
+--- a/arch/arm64/kernel/machine_kexec.c
++++ b/arch/arm64/kernel/machine_kexec.c
+@@ -159,8 +159,15 @@ int machine_kexec_post_load(struct kimage *kimage)
+  * machine_kexec - Do the kexec reboot.
+  *
+  * Called from the core kexec code for a sys_reboot with LINUX_REBOOT_CMD_KEXEC.
++ *
++ * __nocfi: both calls below go through a physical address. With CONFIG_CFI,
++ * the indirect call to kern_reloc first loads the type hash 4 bytes before
++ * the target, in the page before the relocation page, which the idmap in
++ * TTBR0 does not map: a translation fault in machine_kexec(). The relocation
++ * code is copied from an untyped SYM_CODE block, so there is no hash to match
++ * anyway. swsusp_arch_resume() does the same for the same reason.
+  */
+-void machine_kexec(struct kimage *kimage)
++void __nocfi machine_kexec(struct kimage *kimage)
+ {
+ 	bool in_kexec_crash = (kimage == kexec_crash_image);
+ 	bool stuck_cpus = cpus_are_stuck_in_kernel();
+-- 
+2.56.0
+
