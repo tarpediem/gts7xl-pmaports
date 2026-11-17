@@ -1,0 +1,46 @@
+From ca16d990d2cb69b8bd98b36ea3d4e4d25ee764a0 Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Tue, 17 Nov 2026 11:28:14 +0700
+Subject: [PATCH 13/13] arm64: dts: qcom: sm8250-samsung-gts7xl: touch bus
+ without GPI DMA
+
+The r7 image with gpi_dma0 enabled did not boot (no USB, MDSS never
+took over). Leave gpi_dma0 disabled as before and drop the GPI dmas
+from i2c5, so it runs in FIFO/SE-DMA mode like i2c0.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts | 12 +++++++-----
+ 1 file changed, 7 insertions(+), 5 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+index ee9618f0a..cace7ae71 100644
+--- a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
++++ b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+@@ -327,16 +327,18 @@ vreg_l17a_3p0: ldo17 {
+  * no MUIC driver yet: the initramfs switches the USB data lines to the SoC
+  * through /dev/i2c-N (MUIC at 0x25), so the bus only has to exist.
+  */
+-&gpi_dma0 {
+-	status = "okay";
+-};
+-
+ &i2c0 {
+ 	status = "okay";
+ };
+ 
+-/* Touchscreen bus: QUP SE5, 400 kHz as the stock geni driver's default */
++/*
++ * Touchscreen bus: QUP SE5, 400 kHz as the stock geni driver's default.
++ * FIFO/SE-DMA mode only: no GPI (gpi_dma0 stays disabled).
++ */
+ &i2c5 {
++	/delete-property/ dmas;
++	/delete-property/ dma-names;
++
+ 	clock-frequency = <400000>;
+ 
+ 	status = "okay";
+-- 
+2.56.0
+
