@@ -1,0 +1,48 @@
+From 706c794eaae527760db3b0c405d486a01ef11d9f Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Tue, 17 Nov 2026 18:59:18 +0700
+Subject: [PATCH 26/26] arm64: dts: qcom: sm8250-samsung-gts7xl: charge from 2
+ C
+
+The mainline 100k NTC table reads this thermistor about 1 C high between
+0 and 45 C against the stock sec-battery table, so the cold stop at 0 C
+was really about -1.3 C. Stop below 2 C (about 0.8 C real), recover at
+4 C; the hot side (41 C, about 40.1 C real) stays.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts | 11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+index 2f12e2c3b..2af9af63c 100644
+--- a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
++++ b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+@@ -60,10 +60,11 @@ aliases {
+ 	 *   stock value from 1000 cycles on; new battery 4.38 V);
+ 	 * - charge current: the lowest charging_current of cable-info
+ 	 *   (450 mA); the input limit is on the charger node;
+-	 * - charging only from 0 C (recovery 2 C, stock temp_low_threshold /
+-	 *   _recovery) up to 41 C (recovery 39 C): the stock swelling block
+-	 *   is 42 C (recovery 40 C), lowered by 1 C because the mainline
+-	 *   100k NTC table reads this thermistor ~0.5 C low near 42 C.
++	 * - charging from 2 C (recovery 4 C) up to 41 C (recovery 39 C), on the
++	 *   mainline 100k NTC table, which reads this thermistor ~1 C high
++	 *   between 0 and 45 C against the stock table: that is about 0.8 C
++	 *   to 40.1 C of real battery temperature, inside the stock window
++	 *   (stop below 0 C, swelling block at 42 C).
+ 	 */
+ 	battery: battery {
+ 		compatible = "simple-battery";
+@@ -74,7 +75,7 @@ battery: battery {
+ 		voltage-max-design-microvolt = <4380000>;
+ 		constant-charge-voltage-max-microvolt = <4270000>;
+ 		constant-charge-current-max-microamp = <450000>;
+-		alert-celsius = <0 41>;
++		alert-celsius = <2 41>;
+ 	};
+ 
+ 	chosen {
+-- 
+2.56.0
+

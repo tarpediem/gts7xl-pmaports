@@ -2,11 +2,16 @@
 # Kernel config based on: linux-postmarketos-qcom-sm8250 (refreshed with olddefconfig)
 pkgname=linux-samsung-gts7xl
 pkgver=7.3.4
-pkgrel=15
+pkgrel=17
 pkgdesc="Mainline kernel for Samsung Galaxy Tab S7+ 5G (gts7xl)"
 arch="aarch64"
 _carch="arm64"
 _flavor="samsung-gts7xl"
+# Kernel release 7.3.4-r<pkgrel>: each package revision gets its own
+# /lib/modules directory. Modules carry BTF tied to the exact vmlinux
+# (DEBUG_INFO_BTF_MODULES), so another build's modules never load; with a
+# distinct release a test kernel's modules can sit next to the installed ones.
+_localversion="-r$pkgrel"
 url="https://kernel.org"
 license="GPL-2.0-only"
 options="!strip !check !tracedeps pmb:cross-native"
@@ -51,6 +56,10 @@ source="https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-$pkgver.tar.xz
 	0021-power-supply-max17042-match-maxim-max77705-battery-o.patch
 	0022-power-supply-max77705-optional-battery-temperature-s.patch
 	0023-arm64-dts-qcom-sm8250-samsung-gts7xl-MAX77705-charge.patch
+	0024-mfd-max77705-accept-the-MD15-die-at-revision-2.patch
+	0025-power-supply-max77705-safety-monitor-review-fixes.patch
+	0026-arm64-dts-qcom-sm8250-samsung-gts7xl-charge-from-2-C.patch
+	0027-power-supply-max77705-stop-charging-at-a-capacity-th.patch
 	"
 builddir="$srcdir/linux-$pkgver"
 
@@ -61,7 +70,7 @@ prepare() {
 
 build() {
 	unset LDFLAGS
-	make ARCH="$_carch" LLVM=1 \
+	make ARCH="$_carch" LLVM=1 LOCALVERSION="$_localversion" \
 		KBUILD_BUILD_VERSION="$((pkgrel + 1 ))-$_flavor"
 }
 
@@ -81,6 +90,7 @@ package() {
 	make modules_install dtbs_install \
 		ARCH="$_carch" \
 		LLVM=1 \
+		LOCALVERSION="$_localversion" \
 		INSTALL_PATH="$pkgdir"/boot/ \
 		INSTALL_MOD_PATH="$pkgdir"/usr \
 		INSTALL_MOD_STRIP=1 \
@@ -116,4 +126,8 @@ c75a6c8f1b90cecb1f728dd3e4b8030d3842d768652f59df0d314c5938fea9339e93f03962c9dfd0
 4c87b4574b7e37b02d936ac4d0b28ea1d9c305b8cc516e42b4b605f5b0bffbe607241a5d56c25825b32c0efe6c3bd6d3e7732ee03a6e38a8ba9d977e04e4353a  0021-power-supply-max17042-match-maxim-max77705-battery-o.patch
 a58de07ba9f2b868c1dbef7e38690521c5c0e2c1e41a2e9e6bafd6d8eeebd541bd50cffee14b167dd3fd3662aeb3216bf4e2546612f5e85d37a155f943ce3763  0022-power-supply-max77705-optional-battery-temperature-s.patch
 c286cf1ee01f4f77f4db7c5d9609ea9211df3b5f95dfec3f706864492765afd354f206c10c842b6fd27e07bdafd0b6061af8184c4fef7ecb2d1109472cfe2269  0023-arm64-dts-qcom-sm8250-samsung-gts7xl-MAX77705-charge.patch
+3115b64e85d93cd67a11b5ad32d184ffa35e5728ee007a1e9b14342b81574f11b10de5b8b5113f0d6c1e53f67180d27145e3aabedbcf7252bf484fe6d80fbe23  0024-mfd-max77705-accept-the-MD15-die-at-revision-2.patch
+c96ee8d111e75d319bf8ef1975d9c6bc9d8eaa5b1c89e17ea60494a7f8b6deff81eac85c54c53f860157698d4d3ccfd29aece61709a1a837ae79297aa42e1372  0025-power-supply-max77705-safety-monitor-review-fixes.patch
+4ef5d1a8fc8b421d8b6d0b3a568dcd96b8cac1ed625c6fc01b1263be52099375ac4b4adc21e62696538de5ee16950c4bfa47d50d21aeff60009f617e150930a5  0026-arm64-dts-qcom-sm8250-samsung-gts7xl-charge-from-2-C.patch
+f974159e7be355bb357bcb380a11c308fc4232c715e69c98ee72ce6626efc7be62debe509ee5fc91487e353988274fde734562d2ee6efdf908d613919eecb2bb  0027-power-supply-max77705-stop-charging-at-a-capacity-th.patch
 "
