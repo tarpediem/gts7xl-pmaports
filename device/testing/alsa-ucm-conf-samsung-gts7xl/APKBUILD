@@ -1,7 +1,7 @@
 # Maintainer: tarpediem <tarpediem@gmail.com>
 pkgname=alsa-ucm-conf-samsung-gts7xl
 pkgver=1
-pkgrel=0
+pkgrel=1
 pkgdesc="ALSA UCM and WirePlumber configuration for the Samsung Galaxy Tab S7+ 5G speakers"
 url="https://github.com/tarpediem/gts7xl-mainline"
 arch="noarch"
