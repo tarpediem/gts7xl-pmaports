@@ -1,0 +1,44 @@
+From 78850b2cec593bd81103e65260a38e92be93fdcf Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Tue, 17 Nov 2026 23:22:27 +0700
+Subject: [PATCH 2/2] arm64: dts: qcom: sm8250-samsung-gts7xl-rearcam: stock
+ 19.2 MHz MCLK
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../boot/dts/qcom/sm8250-samsung-gts7xl-rearcam.dts  | 12 +++++++-----
+ 1 file changed, 7 insertions(+), 5 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl-rearcam.dts b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl-rearcam.dts
+index b68d778f7..1c839b46c 100644
+--- a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl-rearcam.dts
++++ b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl-rearcam.dts
+@@ -15,10 +15,12 @@
+  * here. Stock power-up: VIO, 1 ms, VANA, 1 ms, reset released, 1 ms, MCLK,
+  * 8 ms. No separate digital supply in the stock sequence.
+  *
+- * Differences from stock: MCLK 24 MHz instead of 19.2 MHz (the mainline
+- * s5k3m5 driver only has 24 MHz register tables; inside the sensor's input
+- * range), link frequency 602.5 MHz (mainline table). Autofocus actuator
+- * (0x0c) and EEPROM (0x58) are not described.
++ * MCLK stays at the stock 19.2 MHz: the mainline s5k3m5 driver only has
++ * 24 MHz register tables, so with the gts7xl patch it probes and identifies
++ * the sensor but refuses to stream. Switching to 24 MHz (inside the sensor's
++ * input range, but not what stock does) is the next step for images. Link
++ * frequency 602.5 MHz (mainline table). Autofocus actuator (0x0c) and EEPROM
++ * (0x58) are not described.
+  */
+ 
+ #include "sm8250-samsung-gts7xl.dts"
+@@ -87,7 +89,7 @@ camera@2d {
+ 
+ 		clocks = <&camcc CAM_CC_MCLK0_CLK>;
+ 		assigned-clocks = <&camcc CAM_CC_MCLK0_CLK>;
+-		assigned-clock-rates = <24000000>;
++		assigned-clock-rates = <19200000>;
+ 
+ 		reset-gpios = <&tlmm 73 GPIO_ACTIVE_LOW>;
+ 
+-- 
+2.56.0
+

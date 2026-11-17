@@ -69,6 +69,8 @@ source="https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-$pkgver.tar.xz
 	0034-arm64-dts-qcom-sm8250-samsung-gts7xl-rear-camera-tes.patch
 	0035-Input-wacom_w90xx-Wacom-W9021-EMR-digitizer-Samsung-.patch
 	0036-arm64-dts-qcom-sm8250-samsung-gts7xl-S-Pen-digitizer.patch
+	0037-media-i2c-s5k3m5-probe-with-a-19.2-MHz-MCLK-stream-o.patch
+	0038-arm64-dts-qcom-sm8250-samsung-gts7xl-rearcam-stock-1.patch
 	"
 builddir="$srcdir/linux-$pkgver"
 
@@ -148,4 +150,6 @@ a185276dfd60ebc5be374b9e3fe3057be2298e92a184c0a007b5b4ad621a253e598eb4316b2c0902
 298408a45709f6e2f14eb5647664c15e7a56a15e26c0ac71200efb3d060a34c7d4b45ffb16ec6063ec008f0a57897b4ac86bb07ca961a5d10905994875d61030  0034-arm64-dts-qcom-sm8250-samsung-gts7xl-rear-camera-tes.patch
 a8857fe5fc086fca5e6abc52d31e736755133dbd50a25a03a7b2b6d444bde380a4ba816b1fafcfad3e2a2b8100d2db4a2538cf9f7ed574875599b4dc91ffdf35  0035-Input-wacom_w90xx-Wacom-W9021-EMR-digitizer-Samsung-.patch
 1bbe43f275b3d5228a4343b29d27a9eb5b5397cb604c3576cbbf45b1bb4180b515e9e8c3e14d683d203d322090dd4b8af0cc145d19110f915c9ae2064702e8bc  0036-arm64-dts-qcom-sm8250-samsung-gts7xl-S-Pen-digitizer.patch
+1546fd5acf71c7d79aea225b53d51528878fa52670207414ab656e14293fca7e9e178bf59436f30e2d137e06fae9a72fdb45d2cd9eaa922f6d38e835c263e236  0037-media-i2c-s5k3m5-probe-with-a-19.2-MHz-MCLK-stream-o.patch
+8f20a2a44ada6a4171bff9068dc1cf477b22c05a071856f245f55e51f47778a427af2de92452be95c0211c71f1107d452a265a33aa4ff9dc7945d73358ae56aa  0038-arm64-dts-qcom-sm8250-samsung-gts7xl-rearcam-stock-1.patch
 "
