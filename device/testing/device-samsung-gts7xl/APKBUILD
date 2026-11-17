@@ -2,7 +2,7 @@
 pkgname=device-samsung-gts7xl
 pkgdesc="Samsung Galaxy Tab S7+ 5G"
 pkgver=1
-pkgrel=5
+pkgrel=6
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -25,7 +25,7 @@ package() {
 		-t "$pkgdir"/usr/share/mkinitfs/files
 }
 sha512sums="
-930ee4a43e2a90dd4d2f5dc9e038006f61abaa77550e55920d946c75cd679c87bc256a3e6a9b15a59b9f87f21eaf608e00bdb918449e018bf98cc8f182147f42  deviceinfo
+9d3c5971799d2216b9b141aa6209672db1773bc728d5e3f0a7b10f21d02fe355809b8a0c77f20a1db8ef078a85f9f56fd6791c8f8a1329419f31c776f106a80f  deviceinfo
 b615aa48da3603b6f6d0426bf199a8fa3a3d8e2835e863f51b5b78529d695d93c5aeafcd14e68ae32a1b8bc9c25341768457ab64681ecb9b4fac08df8d5e99d8  00-gts7xl-usb-muic.sh
 31f355774f5413171a557f9e410d835e7a0d3f58c679421cb9e459fd21f27fa8c70ab2b728ccca6724bb38ddedd2138c4988df220c01a53688d4680142b7c93e  30-gts7xl.files
 "

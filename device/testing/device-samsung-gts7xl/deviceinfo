@@ -12,7 +12,9 @@ deviceinfo_screen_width="2800"
 deviceinfo_screen_height="1752"
 # First-boot cmdline:
 # - console=tty0: kernel log on the bootloader framebuffer (simple-framebuffer);
-# - clk_ignore_unused pd_ignore_unused: keep what the bootloader turned on (display);
+# - clk_ignore_unused pd_ignore_unused regulator_ignore_unused: keep what the
+#   bootloader turned on (display); the regulator one stops the cleanup, 30 s after
+#   boot, from switching off rails that have no consumer yet (refgen);
 # - cpuidle.off=1: no deep idle yet (the stock cmdline has lpm_levels.sleep_disabled=1);
 # - panic=5 oops=panic: an oops becomes a panic, and a panic reboots after 5 s;
 # - softlockup_panic=1 nmi_watchdog=panic: a CPU stuck for 20 s (10 s with interrupts
@@ -21,7 +23,7 @@ deviceinfo_screen_height="1752"
 #   kernel patch 0003), so the log stays in ramoops for One UI;
 # - pmos.debug-shell: the initramfs stops in its debug shell (telnet 172.16.42.1 over
 #   USB, getty on the screen) instead of looking for a root filesystem.
-deviceinfo_kernel_cmdline="console=tty0 clk_ignore_unused pd_ignore_unused cpuidle.off=1 panic=5 oops=panic softlockup_panic=1 nmi_watchdog=panic reboot=warm pmos.debug-shell"
+deviceinfo_kernel_cmdline="console=tty0 clk_ignore_unused pd_ignore_unused regulator_ignore_unused cpuidle.off=1 panic=5 oops=panic softlockup_panic=1 nmi_watchdog=panic reboot=warm pmos.debug-shell"
 deviceinfo_generate_bootimg="true"
 deviceinfo_header_version="2"
 deviceinfo_bootimg_qcdt="false"

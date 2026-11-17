@@ -1,0 +1,64 @@
+From 5954f55b74e4c1c0b5648861aa72a03174da1a55 Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Tue, 17 Nov 2026 10:04:10 +0700
+Subject: [PATCH] arm64: dts: qcom: sm8250-samsung-gts7xl: keep the bootloader
+ display powered
+
+On the first boot the panel showed garbage, faded to white, then black.
+The DSI host the bootloader left running lost its power from three sides:
+
+- dispcc has no consumer, so its sync_state ran at late_initcall and genpd
+  switched the MDSS GDSC off (pd_ignore_unused does not cover sync_state);
+- rpmhpd sync_state lowered MMCX to the only vote left (camcc, low_svs)
+  while the MDP clock still runs at 300 MHz;
+- L9A (DSI 1.2 V) is shared with the UFS PHY, which released it on its
+  first runtime suspend.
+
+Make the simple-framebuffer the consumer of these resources: MMCX at
+nominal, the MDSS GDSC, and the L5A/L9A rails. simpledrm keeps them on for
+as long as it is bound. The panel's own supply and reset GPIOs are not
+claimed by anything and stay as the bootloader left them.
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+---
+ .../boot/dts/qcom/sm8250-samsung-gts7xl.dts     | 17 ++++++++++++++++-
+ 1 file changed, 16 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+index 79122cc97..1549255a3 100644
+--- a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
++++ b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+@@ -50,7 +50,18 @@ chosen {
+ 		#size-cells = <2>;
+ 		ranges;
+ 
+-		/* Bootloader splash: 2800x1752 panel, left running by the ABL. */
++		/*
++		 * Bootloader splash: 2800x1752 command-mode panel, left running
++		 * by the ABL. There is no MDSS/DSI driver yet, so this node is
++		 * the only consumer of what the DSI host needs to stay alive:
++		 * the MDSS GDSC (else genpd sync_state collapses it once dispcc
++		 * has no consumer left to wait for), MMCX at the level of the
++		 * MDP clock the ABL left running (else rpmhpd sync_state drops
++		 * it to the camcc vote) and the DSI 0.88 V / 1.2 V rails (L9A is
++		 * shared with the UFS PHY, which switches it off on runtime
++		 * suspend). The panel keeps its own power (GPIO 135) and reset
++		 * (GPIO 82) as the ABL left them: nothing claims these pins.
++		 */
+ 		framebuffer: framebuffer@9c000000 {
+ 			compatible = "simple-framebuffer";
+ 			reg = <0x0 0x9c000000 0x0 0x2300000>;
+@@ -58,6 +69,10 @@ framebuffer: framebuffer@9c000000 {
+ 			height = <1752>;
+ 			stride = <(2800 * 4)>;
+ 			format = "a8r8g8b8";
++			power-domains = <&rpmhpd RPMHPD_MMCX>, <&dispcc MDSS_GDSC>;
++			required-opps = <&rpmhpd_opp_nom>;
++			vdda-0p9-supply = <&vreg_l5a_0p88>;
++			vdda-1p2-supply = <&vreg_l9a_1p2>;
+ 		};
+ 	};
+ 
+-- 
+2.56.0
+
