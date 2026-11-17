@@ -65,6 +65,10 @@ source="https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-$pkgver.tar.xz
 	0030-arm64-dts-qcom-sm8250-samsung-gts7xl-enable-the-Adre.patch
 	0031-ASoC-qcom-sm8250-primary-TDM-with-several-codecs.patch
 	0032-arm64-dts-qcom-sm8250-samsung-gts7xl-speakers-4x-CS3.patch
+	0033-arm64-dts-qcom-sm8250-samsung-gts7xl-sensor-DSP-and-.patch
+	0034-arm64-dts-qcom-sm8250-samsung-gts7xl-rear-camera-tes.patch
+	0035-Input-wacom_w90xx-Wacom-W9021-EMR-digitizer-Samsung-.patch
+	0036-arm64-dts-qcom-sm8250-samsung-gts7xl-S-Pen-digitizer.patch
 	"
 builddir="$srcdir/linux-$pkgver"
 
@@ -107,7 +111,7 @@ package() {
 }
 sha512sums="
 db5508c3cf8b613b4680022eb785c036bcf8a5c952f8d0b2f3c2c7dc16779cf8bd954e0bca0b0b52451bac61430a687ae73205574f002f3b60de886640ebb9b0  linux-7.3.4.tar.xz
-b80d9a26bd612f50e943ac3857555b0bceab88441c0c5e0be7ff4b73dbcafd5258bc1b6b5325acdeda3d8c0e8686234087c90b209f678e3c453ad1ab02544243  config-samsung-gts7xl.aarch64
+901c3a54cf9ceacc8fecdeb466b792796a7f69929bbe18603d218df883fcf1911dcfb67d1566236316846276cb3f8d679c93c1538567438a8ef818f1089365f9  config-samsung-gts7xl.aarch64
 7a204395b5be27b4af1828cd46ab6753288b0157bb01cdc46a6d3953ba23ea0b5300ab1bec7fac5730abb989dcd1eb6f53c411631cdbde136eafe81a4492ace0  0001-arm64-dts-qcom-sm8250-add-Samsung-Galaxy-Tab-S7-5G-s.patch
 e9e85e11505b5c2d0a3433d40c98005cf1aa6bb95569ade6dbef41f6537faf0724c79f1acc1d53c2281290fcba6573d7283ad745c59e8921c2221b63cca0dddf  0002-arm64-dts-qcom-sm8250-samsung-gts7xl-memory-map-psto.patch
 cd923fabbb4fec9421cae5a7fd9b9c4e1f09099f42e622e5be437f30c422fa932f5091b84ce8bf665e1fa297f40b28b542fdf9ffbac47b103ffc9fb67456c682  0003-Input-pm8941-pwrkey-select-the-warm-PS_HOLD-reset-at.patch
@@ -140,4 +144,8 @@ fb0c9b2f33f796163cac65e8e53921a484fb49031ba0f2b41c714d1a459c6193ccd952aa8e308429
 049c11617968418829123a7657045325fcebf1041a7ede1e8fc4e26175be30fba8be86fd16c6ba9904593fc5180736472389af4f9ad34b04cf43d37972e0358b  0030-arm64-dts-qcom-sm8250-samsung-gts7xl-enable-the-Adre.patch
 36664388d7836b25b1edf355be5d63ba7f13754ab48d0c7b2e925e075743898a30d31b2638ca9ef4fe156d0d4e7b44dcf313c018c5639226765ae8504f2ceab2  0031-ASoC-qcom-sm8250-primary-TDM-with-several-codecs.patch
 44ff7d7b59c3f0676bcf61c6c6d59deb3d3efc4120f99ced39102289c9af74312cfc864e351fdff8da1a9a34dffbdba220306487d94eae1130aac26a5f34a1ca  0032-arm64-dts-qcom-sm8250-samsung-gts7xl-speakers-4x-CS3.patch
+a185276dfd60ebc5be374b9e3fe3057be2298e92a184c0a007b5b4ad621a253e598eb4316b2c09020a8040bdc8a69d89947901852c30f2f4dcd9215e73da5dd6  0033-arm64-dts-qcom-sm8250-samsung-gts7xl-sensor-DSP-and-.patch
+298408a45709f6e2f14eb5647664c15e7a56a15e26c0ac71200efb3d060a34c7d4b45ffb16ec6063ec008f0a57897b4ac86bb07ca961a5d10905994875d61030  0034-arm64-dts-qcom-sm8250-samsung-gts7xl-rear-camera-tes.patch
+a8857fe5fc086fca5e6abc52d31e736755133dbd50a25a03a7b2b6d444bde380a4ba816b1fafcfad3e2a2b8100d2db4a2538cf9f7ed574875599b4dc91ffdf35  0035-Input-wacom_w90xx-Wacom-W9021-EMR-digitizer-Samsung-.patch
+1bbe43f275b3d5228a4343b29d27a9eb5b5397cb604c3576cbbf45b1bb4180b515e9e8c3e14d683d203d322090dd4b8af0cc145d19110f915c9ae2064702e8bc  0036-arm64-dts-qcom-sm8250-samsung-gts7xl-S-Pen-digitizer.patch
 "

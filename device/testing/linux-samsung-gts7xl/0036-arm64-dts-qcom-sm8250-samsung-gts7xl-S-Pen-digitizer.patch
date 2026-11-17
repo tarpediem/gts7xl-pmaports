@@ -1,0 +1,126 @@
+From 28ecdbb12f1fa542675ae120a2659c3efd80bc9d Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Tue, 17 Nov 2026 23:05:30 +0700
+Subject: [PATCH 4/4] arm64: dts: qcom: sm8250-samsung-gts7xl: S Pen digitizer
+
+Wacom W9021 at 0x56 on QUP SE17 (i2c17, GPI DMA2 with the stock EE
+offset 0x6000), interrupt gpio136 level low, flash-mode pin gpio6 held
+low, supply = the stock fixed 3.3 V switch on gpio93 (boot-on in
+stock). The chip reports in the panel's landscape frame: no axis
+transform.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../boot/dts/qcom/sm8250-samsung-gts7xl.dts   | 68 +++++++++++++++++++
+ 1 file changed, 68 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+index 598ce5546..62aa92671 100644
+--- a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
++++ b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+@@ -127,6 +127,20 @@ vreg_panel: regulator-panel {
+ 		pinctrl-0 = <&panel_vdd_en>;
+ 	};
+ 
++	/* S Pen digitizer supply (stock vdd_spen_3p3 "wacom_avdd": fixed 3.3 V, gpio93) */
++	vreg_spen: regulator-spen {
++		compatible = "regulator-fixed";
++		regulator-name = "wacom_avdd";
++		regulator-min-microvolt = <3300000>;
++		regulator-max-microvolt = <3300000>;
++		gpio = <&tlmm 93 GPIO_ACTIVE_HIGH>;
++		enable-active-high;
++		regulator-boot-on;
++
++		pinctrl-names = "default";
++		pinctrl-0 = <&spen_ldo_en>;
++	};
++
+ 	gpio-keys {
+ 		compatible = "gpio-keys";
+ 
+@@ -576,6 +590,13 @@ &gpi_dma1 {
+ 	status = "okay";
+ };
+ 
++/* QUPv3_2 GPI, for i2c17 (S Pen). EE offset from the stock tree (qcom,gpi-ee-offset). */
++&gpi_dma2 {
++	qcom,gpi-ee-offset = <0x6000>;
++
++	status = "okay";
++};
++
+ &gpu {
+ 	status = "okay";
+ };
+@@ -694,6 +715,34 @@ touchscreen@49 {
+  * No DSP firmware is loaded (no speaker protection): userspace keeps the
+  * analog gain at its minimum, see the UCM files.
+  */
++/*
++ * S Pen: Wacom W9021 EMR digitizer (stock "wacom,w90xx" at 0x56 on QUP SE17).
++ * The chip reports in the panel's landscape frame (stock: y inverted, then
++ * x/y swapped into Android's portrait frame, which the touchscreen undoes).
++ * Stock: irq gpio136 (level low), flash-mode pin gpio6 (kept low), pen
++ * detect gpio7 (not used here), max 22656 x 14160.
++ */
++&i2c17 {
++	clock-frequency = <400000>;
++
++	status = "okay";
++
++	digitizer@56 {
++		compatible = "wacom,w9021-samsung";
++		reg = <0x56>;
++
++		interrupts-extended = <&tlmm 136 IRQ_TYPE_LEVEL_LOW>;
++		fwe-gpios = <&tlmm 6 GPIO_ACTIVE_HIGH>;
++		vdd-supply = <&vreg_spen>;
++
++		pinctrl-names = "default";
++		pinctrl-0 = <&spen_int_default>;
++
++		touchscreen-size-x = <22656>;
++		touchscreen-size-y = <14160>;
++	};
++};
++
+ &i2c11 {
+ 	clock-frequency = <1000000>;
+ 
+@@ -922,6 +971,10 @@ &qupv3_id_1 {
+ 	status = "okay";
+ };
+ 
++&qupv3_id_2 {
++	status = "okay";
++};
++
+ &removed_mem {
+ 	reg = <0x0 0x80b00000 0x0 0x7900000>;
+ };
+@@ -1142,6 +1195,21 @@ tx-pins {
+ 		};
+ 	};
+ 
++	/* Stock epen-int-active, epen-ldo-active */
++	spen_int_default: spen-int-default-state {
++		pins = "gpio136";
++		function = "gpio";
++		drive-strength = <2>;
++		bias-disable;
++	};
++
++	spen_ldo_en: spen-ldo-en-state {
++		pins = "gpio93";
++		function = "gpio";
++		drive-strength = <2>;
++		bias-disable;
++	};
++
+ 	/* Stock hall_default / hall_wacom_default / proxy_int_default */
+ 	hall_flip_default: hall-flip-default-state {
+ 		pins = "gpio157";
+-- 
+2.56.0
+

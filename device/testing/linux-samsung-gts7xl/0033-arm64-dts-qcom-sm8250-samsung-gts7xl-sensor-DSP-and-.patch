@@ -1,0 +1,156 @@
+From 9bdfaddc066032e90e80c235719daa96ac5596f6 Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Tue, 17 Nov 2026 22:53:04 +0700
+Subject: [PATCH 1/4] arm64: dts: qcom: sm8250-samsung-gts7xl: sensor DSP and
+ hall sensors
+
+The accelerometer/gyroscope (LSM6DSO), magnetometer (AK0991x) and the
+two VEML3328 light sensors sit behind the SLPI, on the SSC buses: enable
+the SLPI with the Samsung-signed image, the stock pin state of the SSC
+node (gpio67) and its sensor supply (L8C, fixed 1.8 V in stock, turned
+on by the stock PIL driver before the SLPI boots; always on here since
+the PAS driver has no such supply).
+
+The two hall sensors (book cover gpio157, digitizer cover gpio110) are
+plain GPIOs, both low when a magnet is near: gpio-keys switches with
+the stock codes (SW_LID, SW_MACHINE_COVER) and debounce (15 ms), no
+wakeup.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../boot/dts/qcom/sm8250-samsung-gts7xl.dts   | 91 ++++++++++++++++++-
+ 1 file changed, 90 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+index 6b51e3110..598ce5546 100644
+--- a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
++++ b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+@@ -6,7 +6,8 @@
+  * S6TUUM3 panel), touchscreen, keys, UFS, USB 2.0 device mode, MAX77705
+  * charger and fuel gauge (conservative limits, see the battery node), and the
+  * QCA6390 (Wi-Fi on PCIe0, Bluetooth on UART6), the four CS35L41 speaker
+- * amplifiers on Primary TDM through the ADSP. Every value comes from the device tree of the running stock
++ * amplifiers on Primary TDM through the ADSP, the sensor DSP (SLPI) and the
++ * hall sensors. Every value comes from the device tree of the running stock
+  * kernel (T976BXXS7DXH1, board-id <8 6>) or from its kernel configuration.
+  */
+ /dts-v1/;
+@@ -142,6 +143,40 @@ key-vol-up {
+ 		};
+ 	};
+ 
++	/*
++	 * Hall sensors (stock "hall" and "hall_wacom" nodes, vendor
++	 * hall_ic.c / hall_ic_wacom.c): both read low when a magnet is near.
++	 * gpio157 = book cover over the screen, reported as SW_LID like
++	 * stock; gpio110 = cover over the digitizer, SW_MACHINE_COVER like
++	 * stock. Stock debounce 15 ms. No wakeup: suspend is not supported
++	 * on this board yet (the userspace lid action must stay "ignore").
++	 */
++	hall-sensors {
++		compatible = "gpio-keys";
++		label = "Hall sensors";
++
++		pinctrl-names = "default";
++		pinctrl-0 = <&hall_flip_default>, <&hall_wacom_default>;
++
++		switch-cover {
++			label = "Book cover";
++			gpios = <&tlmm 157 GPIO_ACTIVE_LOW>;
++			linux,input-type = <EV_SW>;
++			linux,code = <SW_LID>;
++			debounce-interval = <15>;
++			linux,can-disable;
++		};
++
++		switch-pen-cover {
++			label = "Digitizer cover";
++			gpios = <&tlmm 110 GPIO_ACTIVE_LOW>;
++			linux,input-type = <EV_SW>;
++			linux,code = <SW_MACHINE_COVER>;
++			debounce-interval = <15>;
++			linux,can-disable;
++		};
++	};
++
+ 	/*
+ 	 * QCA6390 power management unit. Stock: cnss node (Wi-Fi) and
+ 	 * bt_qca6390 (Bluetooth) share the rails: aon/dig = S6A (0.95 V),
+@@ -478,6 +513,21 @@ vreg_l5c_1p8: ldo5 {
+ 			regulator-always-on;
+ 		};
+ 
++		/*
++		 * Sensor supply ("pm8150a_l8", fixed 1800000 uV in stock) of the
++		 * sensors behind the SLPI: the stock PIL driver turns it on
++		 * ("sensor_vdd", active-reg) before it boots the SLPI and keeps
++		 * it on while the SLPI runs. Its only stock consumer. The
++		 * mainline PAS driver has no such supply: always on.
++		 */
++		vreg_l8c_1p8: ldo8 {
++			regulator-name = "vreg_l8c_1p8";
++			regulator-min-microvolt = <1800000>;
++			regulator-max-microvolt = <1800000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++			regulator-always-on;
++		};
++
+ 		/*
+ 		 * QCA6390 rfa2 (stock 1350000 uV). Not on the HFSMPS grid
+ 		 * (320000 + n * 8000): 1352000, inside the stock 1.2-1.4 V range.
+@@ -876,6 +926,23 @@ &removed_mem {
+ 	reg = <0x0 0x80b00000 0x0 0x7900000>;
+ };
+ 
++/*
++ * Sensor DSP (SLPI): accelerometer/gyroscope (LSM6DSO), magnetometer
++ * (AK0991x) and the two light sensors (VEML3328) sit behind it, on the SSC
++ * buses. Samsung-signed image from NON-HLOS (tools/extract-dsp.py slpi).
++ * Userspace: hexagonrpcd (sdsp) serves the sensor registry, libssc +
++ * iio-sensor-proxy read the sensors. Stock pin state of the SSC node:
++ * gpio67 as a plain input.
++ */
++&slpi {
++	firmware-name = "qcom/sm8250/samsung/gts7xl/slpi.mbn";
++
++	pinctrl-names = "default";
++	pinctrl-0 = <&ssc_int_default>;
++
++	status = "okay";
++};
++
+ &sound {
+ 	compatible = "qcom,sm8250-sndcard";
+ 	model = "Samsung Galaxy Tab S7+ 5G";
+@@ -1074,6 +1141,28 @@ tx-pins {
+ 			bias-pull-up;
+ 		};
+ 	};
++
++	/* Stock hall_default / hall_wacom_default / proxy_int_default */
++	hall_flip_default: hall-flip-default-state {
++		pins = "gpio157";
++		function = "gpio";
++		drive-strength = <2>;
++		bias-disable;
++	};
++
++	hall_wacom_default: hall-wacom-default-state {
++		pins = "gpio110";
++		function = "gpio";
++		drive-strength = <2>;
++		bias-disable;
++	};
++
++	ssc_int_default: ssc-int-default-state {
++		pins = "gpio67";
++		function = "gpio";
++		drive-strength = <2>;
++		bias-disable;
++	};
+ };
+ 
+ /* QCA6390 Bluetooth (stock qupv3_se6_4uart, 0x998000) */
+-- 
+2.56.0
+

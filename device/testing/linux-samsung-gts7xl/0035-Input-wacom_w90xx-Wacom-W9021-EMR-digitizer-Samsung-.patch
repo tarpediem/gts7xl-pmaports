@@ -1,0 +1,322 @@
+From a23fbc2da06076a9ab0a976c6ba87a844c894e4e Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Tue, 17 Nov 2026 23:05:30 +0700
+Subject: [PATCH 3/4] Input: wacom_w90xx: Wacom W9021 EMR digitizer, Samsung
+ I2C protocol
+
+The Galaxy Tab S7+ pen digitizer speaks Samsung's protocol, not the one
+of wacom_i2c: a plain 31-byte read after power-up returns the query
+block (offset 16, header 0x0f), byte 0x31 starts sampling, and each
+interrupt delivers a 17-byte packet whose type 1 carries in-range,
+eraser, side button and tip flags, x/y, 12-bit pressure, height and
+tilt. Taken from the Samsung vendor driver. The firmware already in the
+chip is used as is (no update path). Axes through the touchscreen-*
+properties.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/input/touchscreen/Kconfig       |  10 +
+ drivers/input/touchscreen/Makefile      |   1 +
+ drivers/input/touchscreen/wacom_w90xx.c | 257 ++++++++++++++++++++++++
+ 3 files changed, 268 insertions(+)
+ create mode 100644 drivers/input/touchscreen/wacom_w90xx.c
+
+diff --git a/drivers/input/touchscreen/Kconfig b/drivers/input/touchscreen/Kconfig
+index fe8afcef5..68a104aba 100644
+--- a/drivers/input/touchscreen/Kconfig
++++ b/drivers/input/touchscreen/Kconfig
+@@ -598,6 +598,16 @@ config TOUCHSCREEN_WACOM_W8001
+ 	  To compile this driver as a module, choose M here: the
+ 	  module will be called wacom_w8001.
+ 
++config TOUCHSCREEN_WACOM_W90XX
++	tristate "Wacom W90xx EMR digitizer (Samsung I2C protocol)"
++	depends on I2C
++	help
++	  Say Y here for the Wacom W9021 pen digitizer of the Samsung
++	  Galaxy Tab S7+ (Samsung's I2C protocol, firmware in the chip).
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called wacom_w90xx.
++
+ config TOUCHSCREEN_WACOM_I2C
+ 	tristate "Wacom Tablet support (I2C)"
+ 	depends on I2C
+diff --git a/drivers/input/touchscreen/Makefile b/drivers/input/touchscreen/Makefile
+index 88630a246..daa9b0833 100644
+--- a/drivers/input/touchscreen/Makefile
++++ b/drivers/input/touchscreen/Makefile
+@@ -101,6 +101,7 @@ tsc2007-$(CONFIG_TOUCHSCREEN_TSC2007_IIO)	+= tsc2007_iio.o
+ obj-$(CONFIG_TOUCHSCREEN_TSC2007)	+= tsc2007.o
+ obj-$(CONFIG_TOUCHSCREEN_WACOM_W8001)	+= wacom_w8001.o
+ obj-$(CONFIG_TOUCHSCREEN_WACOM_I2C)	+= wacom_i2c.o
++obj-$(CONFIG_TOUCHSCREEN_WACOM_W90XX)	+= wacom_w90xx.o
+ obj-$(CONFIG_TOUCHSCREEN_WACOM_W9000)	+= wacom_w9000.o
+ obj-$(CONFIG_TOUCHSCREEN_WDT87XX_I2C)	+= wdt87xx_i2c.o
+ obj-$(CONFIG_TOUCHSCREEN_WM831X)	+= wm831x-ts.o
+diff --git a/drivers/input/touchscreen/wacom_w90xx.c b/drivers/input/touchscreen/wacom_w90xx.c
+new file mode 100644
+index 000000000..2c96b85ed
+--- /dev/null
++++ b/drivers/input/touchscreen/wacom_w90xx.c
+@@ -0,0 +1,257 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Wacom W90xx EMR digitizer as used by Samsung (Galaxy Tab S7+: W9021),
++ * Samsung's I2C protocol.
++ *
++ * The chip runs the firmware already flashed on it. Protocol, from the
++ * Samsung vendor driver (drivers/input/wacom/wacom_i2c.c):
++ * - a plain 31-byte read right after power-up returns the query block at
++ *   offset 16: header 0x0f, max x/y, max pressure, firmware version, tilt,
++ *   height;
++ * - one byte 0x31 starts sampling (0x30 stops it);
++ * - on each falling interrupt, a 17-byte read; packet type = byte 0 & 0x0f,
++ *   1 = coordinates: byte 0 bit 7 in range, bit 6 eraser, bit 5 side button,
++ *   bit 4 tip; x = bytes 1-2, y = bytes 3-4 (big endian), pressure = 12 bits
++ *   from bytes 5-6, height = byte 7, tilt x/y = bytes 8/9 (signed). Other
++ *   packets (notifications, replies, pen garage) are ignored here.
++ *
++ * Axes are reported as the chip sends them, transformed by the generic
++ * touchscreen-* properties.
++ */
++
++#include <linux/delay.h>
++#include <linux/gpio/consumer.h>
++#include <linux/i2c.h>
++#include <linux/input.h>
++#include <linux/input/touchscreen.h>
++#include <linux/interrupt.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/regulator/consumer.h>
++#include <linux/unaligned.h>
++
++#define W90XX_CMD_SAMPLE_STOP	0x30
++#define W90XX_CMD_SAMPLE_START	0x31
++
++#define W90XX_COORD_LEN		17
++#define W90XX_QUERY_POS		16
++#define W90XX_QUERY_LEN		(W90XX_QUERY_POS + 15)
++#define W90XX_QUERY_HEADER	0x0f
++
++#define W90XX_PKT_COORD		1
++
++#define W90XX_RDY		BIT(7)
++#define W90XX_ERASER		BIT(6)
++#define W90XX_SIDE		BIT(5)
++#define W90XX_TIP		BIT(4)
++
++struct w90xx {
++	struct i2c_client *client;
++	struct input_dev *input;
++	struct regulator *vdd;
++	struct gpio_desc *fwe_gpio;
++	struct touchscreen_properties props;
++	unsigned int max_pressure;
++	unsigned int max_tilt;
++	unsigned int max_height;
++	int tool;
++};
++
++static int w90xx_send(struct w90xx *w, u8 cmd)
++{
++	int ret = i2c_master_send(w->client, &cmd, 1);
++
++	return ret == 1 ? 0 : (ret < 0 ? ret : -EIO);
++}
++
++static void w90xx_release(struct w90xx *w)
++{
++	if (!w->tool)
++		return;
++
++	input_report_key(w->input, BTN_TOUCH, 0);
++	input_report_key(w->input, BTN_STYLUS, 0);
++	input_report_abs(w->input, ABS_PRESSURE, 0);
++	input_report_key(w->input, w->tool, 0);
++	input_sync(w->input);
++	w->tool = 0;
++}
++
++static irqreturn_t w90xx_irq(int irq, void *data)
++{
++	struct w90xx *w = data;
++	u8 buf[W90XX_COORD_LEN];
++	unsigned int x, y, p;
++	int tool, ret;
++
++	ret = i2c_master_recv(w->client, buf, sizeof(buf));
++	if (ret != sizeof(buf)) {
++		dev_err_ratelimited(&w->client->dev, "read failed: %d\n", ret);
++		return IRQ_HANDLED;
++	}
++
++	if ((buf[0] & 0x0f) != W90XX_PKT_COORD)
++		return IRQ_HANDLED;
++
++	if (!(buf[0] & W90XX_RDY)) {
++		w90xx_release(w);
++		return IRQ_HANDLED;
++	}
++
++	tool = buf[0] & W90XX_ERASER ? BTN_TOOL_RUBBER : BTN_TOOL_PEN;
++	if (w->tool && w->tool != tool)
++		w90xx_release(w);
++	w->tool = tool;
++
++	x = get_unaligned_be16(&buf[1]);
++	y = get_unaligned_be16(&buf[3]);
++	p = ((buf[5] & 0x0f) << 8) | buf[6];
++
++	touchscreen_report_pos(w->input, &w->props, x, y, false);
++	input_report_abs(w->input, ABS_PRESSURE, min(p, w->max_pressure));
++	input_report_abs(w->input, ABS_DISTANCE, buf[7]);
++	input_report_abs(w->input, ABS_TILT_X, (s8)buf[8]);
++	input_report_abs(w->input, ABS_TILT_Y, (s8)buf[9]);
++	input_report_key(w->input, BTN_TOUCH, !!(buf[0] & W90XX_TIP));
++	input_report_key(w->input, BTN_STYLUS, !!(buf[0] & W90XX_SIDE));
++	input_report_key(w->input, tool, 1);
++	input_sync(w->input);
++
++	return IRQ_HANDLED;
++}
++
++static void w90xx_power_off(void *data)
++{
++	struct w90xx *w = data;
++
++	regulator_disable(w->vdd);
++}
++
++static int w90xx_query(struct w90xx *w)
++{
++	struct device *dev = &w->client->dev;
++	u8 buf[W90XX_QUERY_LEN];
++	u8 *q = buf + W90XX_QUERY_POS;
++	int i, ret;
++
++	for (i = 0; i < 3; i++) {
++		ret = i2c_master_recv(w->client, buf, sizeof(buf));
++		if (ret == sizeof(buf) && q[0] == W90XX_QUERY_HEADER)
++			break;
++		msleep(20);
++	}
++	if (i == 3) {
++		dev_err(dev, "no query answer (%d, header 0x%02x)\n", ret, q[0]);
++		return ret < 0 ? ret : -ENODEV;
++	}
++
++	w->max_pressure = get_unaligned_be16(&q[5]);
++	w->max_tilt = q[11];
++	w->max_height = q[13];
++	dev_info(dev, "fw 0x%04x, mpu 0x%02x, bl 0x%02x, max %ux%u, pressure %u, tilt %u, height %u\n",
++		 get_unaligned_be16(&q[7]), q[9], q[10], get_unaligned_be16(&q[1]),
++		 get_unaligned_be16(&q[3]), w->max_pressure, w->max_tilt, w->max_height);
++
++	if (!w->max_pressure || w->max_pressure > 0xfff)
++		w->max_pressure = 0xfff;
++	if (!w->max_height)
++		w->max_height = 0xff;
++
++	return 0;
++}
++
++static int w90xx_probe(struct i2c_client *client)
++{
++	struct device *dev = &client->dev;
++	struct input_dev *input;
++	struct w90xx *w;
++	int ret;
++
++	w = devm_kzalloc(dev, sizeof(*w), GFP_KERNEL);
++	if (!w)
++		return -ENOMEM;
++	w->client = client;
++
++	/* Flash-mode pin: low = run the firmware */
++	w->fwe_gpio = devm_gpiod_get_optional(dev, "fwe", GPIOD_OUT_LOW);
++	if (IS_ERR(w->fwe_gpio))
++		return dev_err_probe(dev, PTR_ERR(w->fwe_gpio), "fwe gpio\n");
++
++	w->vdd = devm_regulator_get(dev, "vdd");
++	if (IS_ERR(w->vdd))
++		return dev_err_probe(dev, PTR_ERR(w->vdd), "vdd supply\n");
++
++	ret = regulator_enable(w->vdd);
++	if (ret)
++		return ret;
++	ret = devm_add_action_or_reset(dev, w90xx_power_off, w);
++	if (ret)
++		return ret;
++	/* Samsung driver: 200 ms after power-up before the first read */
++	msleep(200);
++
++	ret = w90xx_query(w);
++	if (ret)
++		return ret;
++
++	input = devm_input_allocate_device(dev);
++	if (!input)
++		return -ENOMEM;
++	w->input = input;
++	input->name = "Wacom W90xx pen";
++	input->id.bustype = BUS_I2C;
++	input->id.vendor = 0x056a;
++
++	input_set_capability(input, EV_KEY, BTN_TOUCH);
++	input_set_capability(input, EV_KEY, BTN_TOOL_PEN);
++	input_set_capability(input, EV_KEY, BTN_TOOL_RUBBER);
++	input_set_capability(input, EV_KEY, BTN_STYLUS);
++	input_set_abs_params(input, ABS_X, 0, 0xffff, 4, 0);
++	input_set_abs_params(input, ABS_Y, 0, 0xffff, 4, 0);
++	input_set_abs_params(input, ABS_PRESSURE, 0, w->max_pressure, 0, 0);
++	input_set_abs_params(input, ABS_DISTANCE, 0, w->max_height, 0, 0);
++	input_set_abs_params(input, ABS_TILT_X, -(int)w->max_tilt, w->max_tilt, 0, 0);
++	input_set_abs_params(input, ABS_TILT_Y, -(int)w->max_tilt, w->max_tilt, 0, 0);
++	touchscreen_parse_properties(input, false, &w->props);
++	__set_bit(INPUT_PROP_DIRECT, input->propbit);
++
++	ret = input_register_device(input);
++	if (ret)
++		return ret;
++
++	ret = devm_request_threaded_irq(dev, client->irq, NULL, w90xx_irq,
++					IRQF_ONESHOT, client->name, w);
++	if (ret)
++		return ret;
++
++	ret = w90xx_send(w, W90XX_CMD_SAMPLE_START);
++	if (ret)
++		return dev_err_probe(dev, ret, "start command\n");
++
++	return 0;
++}
++
++static const struct of_device_id w90xx_of_match[] = {
++	{ .compatible = "wacom,w9021-samsung" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, w90xx_of_match);
++
++static const struct i2c_device_id w90xx_id[] = {
++	{ "w9021-samsung" },
++	{ }
++};
++MODULE_DEVICE_TABLE(i2c, w90xx_id);
++
++static struct i2c_driver w90xx_driver = {
++	.driver = {
++		.name = "wacom-w90xx",
++		.of_match_table = w90xx_of_match,
++	},
++	.probe = w90xx_probe,
++	.id_table = w90xx_id,
++};
++module_i2c_driver(w90xx_driver);
++
++MODULE_DESCRIPTION("Wacom W90xx EMR digitizer (Samsung I2C protocol)");
++MODULE_LICENSE("GPL");
+-- 
+2.56.0
+

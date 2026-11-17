@@ -1,0 +1,189 @@
+From 0a3ecd58b1c5e537afe4f0a3693bab8b81251935 Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Tue, 17 Nov 2026 22:58:05 +0700
+Subject: [PATCH 2/4] arm64: dts: qcom: sm8250-samsung-gts7xl: rear camera test
+ tree
+
+A separate DTB (the BOOT tree is unchanged) to kexec into while the rear
+wide camera is brought up, never booted yet: Samsung S5K3M5 on CCI0
+master 0 at 0x2d, CSIPHY0 with 4 lanes, MCLK0 (gpio94), reset gpio73,
+analog and I/O supplies switched by gpio39 and gpio37 (external
+switches, the SoC sets no voltage), all from the stock tree and the
+stock camx module data. MCLK is 24 MHz instead of the stock 19.2 MHz:
+the mainline driver only has 24 MHz register tables.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/qcom/Makefile             |   1 +
+ .../qcom/sm8250-samsung-gts7xl-rearcam.dts    | 147 ++++++++++++++++++
+ 2 files changed, 148 insertions(+)
+ create mode 100644 arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl-rearcam.dts
+
+diff --git a/arch/arm64/boot/dts/qcom/Makefile b/arch/arm64/boot/dts/qcom/Makefile
+index d5ac0c856..481f79f69 100644
+--- a/arch/arm64/boot/dts/qcom/Makefile
++++ b/arch/arm64/boot/dts/qcom/Makefile
+@@ -365,6 +365,7 @@ dtb-$(CONFIG_ARCH_QCOM)	+= sm8150-sony-xperia-kumano-griffin.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sm8250-hdk.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sm8250-mtp.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sm8250-samsung-gts7xl.dtb
++dtb-$(CONFIG_ARCH_QCOM)	+= sm8250-samsung-gts7xl-rearcam.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sm8250-samsung-r8q.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sm8250-samsung-x1q.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sm8250-sony-xperia-edo-pdx203.dtb
+diff --git a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl-rearcam.dts b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl-rearcam.dts
+new file mode 100644
+index 000000000..b68d778f7
+--- /dev/null
++++ b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl-rearcam.dts
+@@ -0,0 +1,147 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Samsung Galaxy Tab S7+ 5G (gts7xl): test tree for the rear wide camera.
++ *
++ * NOT for the BOOT image: a separate DTB to kexec into while the rear camera
++ * is brought up. Never booted yet.
++ *
++ * Stock (T976BXXS7DXH1, qcom,cam-sensor0 + camx module
++ * com.samsung.sensormodule.0_lsi_s5k3m5.bin): Samsung S5K3M5 on CCI0 master 0
++ * at 0x2d (stock "slave-addr = <0x5a>", 8-bit), CSIPHY0, 4 lanes
++ * (laneAssign 0x3210), MCLK0 on gpio94, reset gpio73 (active low), analog
++ * supply switched by gpio39 (also the actuator VAF) and I/O supply by gpio37
++ * (shared by every camera, stock cam-res-mgr). Both are external load
++ * switches/LDOs: the SoC only drives their enable pins, no voltage is set
++ * here. Stock power-up: VIO, 1 ms, VANA, 1 ms, reset released, 1 ms, MCLK,
++ * 8 ms. No separate digital supply in the stock sequence.
++ *
++ * Differences from stock: MCLK 24 MHz instead of 19.2 MHz (the mainline
++ * s5k3m5 driver only has 24 MHz register tables; inside the sensor's input
++ * range), link frequency 602.5 MHz (mainline table). Autofocus actuator
++ * (0x0c) and EEPROM (0x58) are not described.
++ */
++
++#include "sm8250-samsung-gts7xl.dts"
++
++#include <dt-bindings/clock/qcom,camcc-sm8250.h>
++#include <dt-bindings/media/video-interfaces.h>
++
++/ {
++	/* Stock cam_vio_pwr_active (gpio37) */
++	vreg_cam_vio: regulator-cam-vio {
++		compatible = "regulator-fixed";
++		regulator-name = "cam_vio";
++		gpio = <&tlmm 37 GPIO_ACTIVE_HIGH>;
++		enable-active-high;
++		startup-delay-us = <1000>;
++
++		pinctrl-names = "default";
++		pinctrl-0 = <&cam_vio_en>;
++	};
++
++	/* Stock cam_rear_pwr_active (gpio39): VANA of the sensor, VAF of the lens */
++	vreg_cam_rear_vana: regulator-cam-rear-vana {
++		compatible = "regulator-fixed";
++		regulator-name = "cam_rear_vana";
++		gpio = <&tlmm 39 GPIO_ACTIVE_HIGH>;
++		enable-active-high;
++		startup-delay-us = <1000>;
++		vin-supply = <&vreg_cam_vio>;
++
++		pinctrl-names = "default";
++		pinctrl-0 = <&cam_rear_vana_en>;
++	};
++};
++
++&camss {
++	vdda-phy-supply = <&vreg_l5a_0p88>;
++	vdda-pll-supply = <&vreg_l9a_1p2>;
++
++	status = "okay";
++
++	ports {
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		port@0 {
++			reg = <0>;
++
++			csiphy0_ep: endpoint {
++				clock-lanes = <7>;
++				data-lanes = <0 1 2 3>;
++				bus-type = <MEDIA_BUS_TYPE_CSI2_DPHY>;
++				remote-endpoint = <&s5k3m5_ep>;
++			};
++		};
++	};
++};
++
++&cci0 {
++	status = "okay";
++};
++
++&cci0_i2c0 {
++	camera@2d {
++		compatible = "samsung,s5k3m5";
++		reg = <0x2d>;
++
++		clocks = <&camcc CAM_CC_MCLK0_CLK>;
++		assigned-clocks = <&camcc CAM_CC_MCLK0_CLK>;
++		assigned-clock-rates = <24000000>;
++
++		reset-gpios = <&tlmm 73 GPIO_ACTIVE_LOW>;
++
++		pinctrl-names = "default";
++		pinctrl-0 = <&cam_rear_default>;
++
++		afvdd-supply = <&vreg_cam_rear_vana>;
++		vdda-supply = <&vreg_cam_rear_vana>;
++		vddd-supply = <&vreg_cam_rear_vana>;
++		vddio-supply = <&vreg_cam_vio>;
++
++		/* stock sensor-position-yaw 180 (back), roll 90 */
++		orientation = <1>;
++		rotation = <90>;
++
++		port {
++			s5k3m5_ep: endpoint {
++				data-lanes = <1 2 3 4>;
++				link-frequencies = /bits/ 64 <602500000>;
++				remote-endpoint = <&csiphy0_ep>;
++			};
++		};
++	};
++};
++
++&tlmm {
++	/* Stock cam_sensor_mclk0_active + cam_sensor_active_rear */
++	cam_rear_default: cam-rear-default-state {
++		mclk-pins {
++			pins = "gpio94";
++			function = "cam_mclk";
++			drive-strength = <4>;
++			bias-disable;
++		};
++
++		rst-pins {
++			pins = "gpio73";
++			function = "gpio";
++			drive-strength = <2>;
++			bias-disable;
++		};
++	};
++
++	cam_vio_en: cam-vio-en-state {
++		pins = "gpio37";
++		function = "gpio";
++		drive-strength = <2>;
++		bias-disable;
++	};
++
++	cam_rear_vana_en: cam-rear-vana-en-state {
++		pins = "gpio39";
++		function = "gpio";
++		drive-strength = <2>;
++		bias-disable;
++	};
++};
+-- 
+2.56.0
+
