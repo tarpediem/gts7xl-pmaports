@@ -2,7 +2,7 @@
 # Kernel config based on: linux-postmarketos-qcom-sm8250 (refreshed with olddefconfig)
 pkgname=linux-samsung-gts7xl
 pkgver=7.3.4
-pkgrel=12
+pkgrel=13
 pkgdesc="Mainline kernel for Samsung Galaxy Tab S7+ 5G (gts7xl)"
 arch="aarch64"
 _carch="arm64"
@@ -46,6 +46,7 @@ source="https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-$pkgver.tar.xz
 	0016-dmaengine-qcom-gpi-let-the-DT-override-the-EE-offset.patch
 	0017-arm64-dts-qcom-sm8250-samsung-gts7xl-GPI-DMA-for-the.patch
 	0018-arm64-kexec-no-kCFI-check-on-the-jump-to-the-relocat.patch
+	0019-arm64-dts-qcom-sm8250-samsung-gts7xl-QCA6390-Wi-Fi-a.patch
 	"
 builddir="$srcdir/linux-$pkgver"
 
@@ -87,7 +88,7 @@ package() {
 }
 sha512sums="
 db5508c3cf8b613b4680022eb785c036bcf8a5c952f8d0b2f3c2c7dc16779cf8bd954e0bca0b0b52451bac61430a687ae73205574f002f3b60de886640ebb9b0  linux-7.3.4.tar.xz
-d3fddb0d87af8128eab9e424eec27edcf777d24101170417691566917755be6091c6d9e3fa004a44be155d72e0ed60cdfe18791a46c87758ba42efd2da27cd9f  config-samsung-gts7xl.aarch64
+c1a43c7e8a17c5788503363a3bc831a5501601b7be46dfb29fff2be63af9613495187a92944256f1c4222665a30aed0e1cebd4b1d02bebd58ee049473904389d  config-samsung-gts7xl.aarch64
 7a204395b5be27b4af1828cd46ab6753288b0157bb01cdc46a6d3953ba23ea0b5300ab1bec7fac5730abb989dcd1eb6f53c411631cdbde136eafe81a4492ace0  0001-arm64-dts-qcom-sm8250-add-Samsung-Galaxy-Tab-S7-5G-s.patch
 e9e85e11505b5c2d0a3433d40c98005cf1aa6bb95569ade6dbef41f6537faf0724c79f1acc1d53c2281290fcba6573d7283ad745c59e8921c2221b63cca0dddf  0002-arm64-dts-qcom-sm8250-samsung-gts7xl-memory-map-psto.patch
 cd923fabbb4fec9421cae5a7fd9b9c4e1f09099f42e622e5be437f30c422fa932f5091b84ce8bf665e1fa297f40b28b542fdf9ffbac47b103ffc9fb67456c682  0003-Input-pm8941-pwrkey-select-the-warm-PS_HOLD-reset-at.patch
@@ -106,4 +107,5 @@ f77d3288f0d714558be0d2a9f2387376b9605b6d3c1e2fd6f92bf6b58870925bfdb8ad8ec27915d7
 584791237e503e8b1784aa8da2deac0b88822e1eb124ba614df4d319ff2b966d654464ce544bb4b7753fd6429f1b11114ae384b13843612c0564654d7e6f6689  0016-dmaengine-qcom-gpi-let-the-DT-override-the-EE-offset.patch
 c75a6c8f1b90cecb1f728dd3e4b8030d3842d768652f59df0d314c5938fea9339e93f03962c9dfd0b18cd46011578349d19c61c1f9449b7d6903e29ec230533c  0017-arm64-dts-qcom-sm8250-samsung-gts7xl-GPI-DMA-for-the.patch
 087ee78929e306d9719e525d1603f3a8d89866fb3d8962bf9fe611d7961ab1df14df657cd0a2cf618f779944b36c323ff1eaab9e9de08460d8e4de4935b8b1ab  0018-arm64-kexec-no-kCFI-check-on-the-jump-to-the-relocat.patch
+1c240312d530e9a16595bd1dee3b44ac40a2a5c0bb3ba3db878d546c2a650ca4d2ae0bc916763e3c9ea45023e6c9b3fb87bf24ee6e502947aeb842b782fa21f4  0019-arm64-dts-qcom-sm8250-samsung-gts7xl-QCA6390-Wi-Fi-a.patch
 "

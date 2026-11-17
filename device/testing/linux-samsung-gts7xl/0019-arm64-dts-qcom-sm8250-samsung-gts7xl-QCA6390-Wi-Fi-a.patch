@@ -1,0 +1,302 @@
+From e2ad9863499c7acf1d17d5be209d62c776603ad2 Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Tue, 17 Nov 2026 14:17:41 +0700
+Subject: [PATCH] arm64: dts: qcom: sm8250-samsung-gts7xl: QCA6390 Wi-Fi and
+ Bluetooth
+
+QCA6390 PMU with the rails and enables of the stock cnss and
+bt_qca6390 nodes (S6A, S4A, S5A, S8C; wlan-en 90, bt-en 76,
+sw-ctrl 124), Wi-Fi on PCIe0, Bluetooth on UART6 (QUP SE6). S6A and
+S8C snapped to the RPMh grid (952 mV, 1352 mV); L5C (antenna switch)
+always on.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../boot/dts/qcom/sm8250-samsung-gts7xl.dts   | 229 +++++++++++++++++-
+ 1 file changed, 228 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+index 0fbbafc0f..8b9a4999d 100644
+--- a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
++++ b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+@@ -3,7 +3,8 @@
+  * Samsung Galaxy Tab S7+ 5G (SM-T976B, gts7xl)
+  *
+  * Bring-up tree: memory map, pstore, boot framebuffer, display (MDSS, DSI0,
+- * S6TUUM3 panel), touchscreen, keys, UFS and USB 2.0 device mode. Every value comes from the device tree of the running stock
++ * S6TUUM3 panel), touchscreen, keys, UFS, USB 2.0 device mode, and the
++ * QCA6390 (Wi-Fi on PCIe0, Bluetooth on UART6). Every value comes from the device tree of the running stock
+  * kernel (T976BXXS7DXH1, board-id <8 6>) or from its kernel configuration.
+  */
+ /dts-v1/;
+@@ -45,6 +46,10 @@ / {
+ 	qcom,msm-id = <0x164 0x20001>;
+ 	qcom,board-id = <0 0>, <8 0>, <8 1>, <8 2>, <8 3>, <8 4>, <8 5>, <8 6>;
+ 
++	aliases {
++		serial0 = &uart6;
++	};
++
+ 	chosen {
+ 		#address-cells = <2>;
+ 		#size-cells = <2>;
+@@ -107,6 +112,75 @@ key-vol-up {
+ 		};
+ 	};
+ 
++	/*
++	 * QCA6390 power management unit. Stock: cnss node (Wi-Fi) and
++	 * bt_qca6390 (Bluetooth) share the rails: aon/dig = S6A (0.95 V),
++	 * io = S4A (1.8 V), rfa1 = S5A (2.04 V), rfa2 = S8C (1.35 V);
++	 * wlan-en-gpio 90, bt reset 76, sw-ctrl 124. The antenna switch
++	 * supply (L5C) has no consumer here: always on, see the regulator.
++	 */
++	qca6390-pmu {
++		compatible = "qcom,qca6390-pmu";
++
++		pinctrl-names = "default";
++		pinctrl-0 = <&bt_en_state>, <&wlan_en_state>, <&wlan_swctrl_state>;
++
++		vddaon-supply = <&vreg_s6a_0p95>;
++		vddpmu-supply = <&vreg_s6a_0p95>;
++		vddrfa0p95-supply = <&vreg_s6a_0p95>;
++		vddrfa1p3-supply = <&vreg_s8c_1p35>;
++		vddrfa1p9-supply = <&vreg_s5a_2p04>;
++		vddpcie1p3-supply = <&vreg_s8c_1p35>;
++		vddpcie1p9-supply = <&vreg_s5a_2p04>;
++		vddio-supply = <&vreg_s4a_1p8>;
++
++		wlan-enable-gpios = <&tlmm 90 GPIO_ACTIVE_HIGH>;
++		bt-enable-gpios = <&tlmm 76 GPIO_ACTIVE_HIGH>;
++		swctrl-gpios = <&tlmm 124 GPIO_ACTIVE_HIGH>;
++
++		regulators {
++			vreg_pmu_rfa_cmn: ldo0 {
++				regulator-name = "vreg_pmu_rfa_cmn";
++			};
++
++			vreg_pmu_aon_0p59: ldo1 {
++				regulator-name = "vreg_pmu_aon_0p59";
++			};
++
++			vreg_pmu_wlcx_0p8: ldo2 {
++				regulator-name = "vreg_pmu_wlcx_0p8";
++			};
++
++			vreg_pmu_wlmx_0p85: ldo3 {
++				regulator-name = "vreg_pmu_wlmx_0p85";
++			};
++
++			vreg_pmu_btcmx_0p85: ldo4 {
++				regulator-name = "vreg_pmu_btcmx_0p85";
++			};
++
++			vreg_pmu_rfa_0p8: ldo5 {
++				regulator-name = "vreg_pmu_rfa_0p8";
++			};
++
++			vreg_pmu_rfa_1p2: ldo6 {
++				regulator-name = "vreg_pmu_rfa_1p2";
++			};
++
++			vreg_pmu_rfa_1p7: ldo7 {
++				regulator-name = "vreg_pmu_rfa_1p7";
++			};
++
++			vreg_pmu_pcie_0p9: ldo8 {
++				regulator-name = "vreg_pmu_pcie_0p9";
++			};
++
++			vreg_pmu_pcie_1p8: ldo9 {
++				regulator-name = "vreg_pmu_pcie_1p8";
++			};
++		};
++	};
++
+ 	reserved-memory {
+ 		xbl_aop_mem: xbl-aop@80603000 {
+ 			reg = <0x0 0x80603000 0x0 0x25d000>;
+@@ -258,6 +332,28 @@ vreg_s4a_1p8: smps4 {
+ 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+ 		};
+ 
++		/*
++		 * QCA6390 rfa1 (stock vdd-wlan-rfa1: 2040000 uV, the top of the
++		 * HFSMPS grid).
++		 */
++		vreg_s5a_2p04: smps5 {
++			regulator-name = "vreg_s5a_2p04";
++			regulator-min-microvolt = <2040000>;
++			regulator-max-microvolt = <2040000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++		};
++
++		/*
++		 * QCA6390 aon/dig (stock 950000-952000 uV). 950000 is not on the
++		 * FTSMPS grid (300000 + n * 4000): 952000.
++		 */
++		vreg_s6a_0p95: smps6 {
++			regulator-name = "vreg_s6a_0p95";
++			regulator-min-microvolt = <952000>;
++			regulator-max-microvolt = <952000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++		};
++
+ 		vreg_l2a_3p1: ldo2 {
+ 			regulator-name = "vreg_l2a_3p1";
+ 			regulator-min-microvolt = <3072000>;
+@@ -327,6 +423,35 @@ vreg_l17a_3p0: ldo17 {
+ 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+ 		};
+ 	};
++
++	/* PM8150L ("pm8150a" in the stock tree) */
++	regulators-1 {
++		compatible = "qcom,pm8150l-rpmh-regulators";
++		qcom,pmic-id = "c";
++
++		/*
++		 * Wi-Fi antenna switch ("wlan-ant-switch", 1800000 uV, no load
++		 * vote in stock). Nothing in mainline claims it: always on.
++		 */
++		vreg_l5c_1p8: ldo5 {
++			regulator-name = "vreg_l5c_1p8";
++			regulator-min-microvolt = <1800000>;
++			regulator-max-microvolt = <1800000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++			regulator-always-on;
++		};
++
++		/*
++		 * QCA6390 rfa2 (stock 1350000 uV). Not on the HFSMPS grid
++		 * (320000 + n * 8000): 1352000, inside the stock 1.2-1.4 V range.
++		 */
++		vreg_s8c_1p35: smps8 {
++			regulator-name = "vreg_s8c_1p35";
++			regulator-min-microvolt = <1352000>;
++			regulator-max-microvolt = <1352000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++		};
++	};
+ };
+ 
+ /*
+@@ -427,6 +552,42 @@ &mdss_dsi0_phy {
+ 	status = "okay";
+ };
+ 
++/* QCA6390 Wi-Fi. Stock pcie0: perst 79, wake 81 (as sm8250.dtsi), 0.88/1.2 V. */
++&pcie0 {
++	status = "okay";
++};
++
++&pcie0_phy {
++	vdda-phy-supply = <&vreg_l5a_0p88>;
++	vdda-pll-supply = <&vreg_l9a_1p2>;
++
++	status = "okay";
++};
++
++&pcieport0 {
++	wifi@0 {
++		compatible = "pci17cb,1101";
++		reg = <0x10000 0x0 0x0 0x0 0x0>;
++
++		vddrfacmn-supply = <&vreg_pmu_rfa_cmn>;
++		vddaon-supply = <&vreg_pmu_aon_0p59>;
++		vddwlcx-supply = <&vreg_pmu_wlcx_0p8>;
++		vddwlmx-supply = <&vreg_pmu_wlmx_0p85>;
++		vddrfa0p8-supply = <&vreg_pmu_rfa_0p8>;
++		vddrfa1p2-supply = <&vreg_pmu_rfa_1p2>;
++		vddrfa1p7-supply = <&vreg_pmu_rfa_1p7>;
++		vddpcie0p9-supply = <&vreg_pmu_pcie_0p9>;
++		vddpcie1p8-supply = <&vreg_pmu_pcie_1p8>;
++
++		/*
++		 * board-2.bin entry for the stock board data (bdwlan.elf, not
++		 * redistributable: see tools/wlan-fw-overlay.py in gts7xl-mainline).
++		 * Without it ath11k falls back to the generic board-id 255 entry.
++		 */
++		qcom,calibration-variant = "Samsung_gts7xl";
++	};
++};
++
+ &pm8150l_gpios {
+ 	vol_up_n: vol-up-n-state {
+ 		pins = "gpio3";
+@@ -508,6 +669,72 @@ panel_vdd_en: panel-vdd-en-state {
+ 		drive-strength = <2>;
+ 		bias-pull-down;
+ 	};
++
++	/* QCA6390 enables, from the stock cnss and bt_qca6390 nodes */
++	bt_en_state: bt-en-state {
++		pins = "gpio76";
++		function = "gpio";
++		drive-strength = <2>;
++		output-low;
++		bias-pull-down;
++	};
++
++	wlan_en_state: wlan-en-state {
++		pins = "gpio90";
++		function = "gpio";
++		drive-strength = <16>;
++		output-low;
++		bias-pull-up;
++	};
++
++	wlan_swctrl_state: wlan-swctrl-state {
++		pins = "gpio124";
++		function = "gpio";
++		drive-strength = <2>;
++		bias-disable;
++	};
++
++	/* qupv3_se6_ctsrx / _rts / _tx (stock active state) */
++	bt_uart_default: bt-uart-default-state {
++		cts-rx-pins {
++			pins = "gpio16", "gpio19";
++			function = "qup6";
++			drive-strength = <2>;
++			bias-disable;
++		};
++
++		rts-pins {
++			pins = "gpio17";
++			function = "qup6";
++			drive-strength = <2>;
++			bias-pull-down;
++		};
++
++		tx-pins {
++			pins = "gpio18";
++			function = "qup6";
++			drive-strength = <2>;
++			bias-pull-up;
++		};
++	};
++};
++
++/* QCA6390 Bluetooth (stock qupv3_se6_4uart, 0x998000) */
++&uart6 {
++	pinctrl-0 = <&bt_uart_default>;
++
++	status = "okay";
++
++	bluetooth {
++		compatible = "qcom,qca6390-bt";
++
++		vddrfacmn-supply = <&vreg_pmu_rfa_cmn>;
++		vddaon-supply = <&vreg_pmu_aon_0p59>;
++		vddbtcmx-supply = <&vreg_pmu_btcmx_0p85>;
++		vddrfa0p8-supply = <&vreg_pmu_rfa_0p8>;
++		vddrfa1p2-supply = <&vreg_pmu_rfa_1p2>;
++		vddrfa1p7-supply = <&vreg_pmu_rfa_1p7>;
++	};
+ };
+ 
+ &ufs_mem_hc {
+-- 
+2.56.0
+
