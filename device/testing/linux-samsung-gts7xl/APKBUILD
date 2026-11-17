@@ -2,7 +2,7 @@
 # Kernel config based on: linux-postmarketos-qcom-sm8250 (refreshed with olddefconfig)
 pkgname=linux-samsung-gts7xl
 pkgver=7.3.4
-pkgrel=13
+pkgrel=14
 pkgdesc="Mainline kernel for Samsung Galaxy Tab S7+ 5G (gts7xl)"
 arch="aarch64"
 _carch="arm64"
@@ -47,6 +47,7 @@ source="https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-$pkgver.tar.xz
 	0017-arm64-dts-qcom-sm8250-samsung-gts7xl-GPI-DMA-for-the.patch
 	0018-arm64-kexec-no-kCFI-check-on-the-jump-to-the-relocat.patch
 	0019-arm64-dts-qcom-sm8250-samsung-gts7xl-QCA6390-Wi-Fi-a.patch
+	0020-dmaengine-qcom-gpi-reclaim-GPIIs-left-allocated-tear.patch
 	"
 builddir="$srcdir/linux-$pkgver"
 
@@ -108,4 +109,5 @@ f77d3288f0d714558be0d2a9f2387376b9605b6d3c1e2fd6f92bf6b58870925bfdb8ad8ec27915d7
 c75a6c8f1b90cecb1f728dd3e4b8030d3842d768652f59df0d314c5938fea9339e93f03962c9dfd0b18cd46011578349d19c61c1f9449b7d6903e29ec230533c  0017-arm64-dts-qcom-sm8250-samsung-gts7xl-GPI-DMA-for-the.patch
 087ee78929e306d9719e525d1603f3a8d89866fb3d8962bf9fe611d7961ab1df14df657cd0a2cf618f779944b36c323ff1eaab9e9de08460d8e4de4935b8b1ab  0018-arm64-kexec-no-kCFI-check-on-the-jump-to-the-relocat.patch
 1c240312d530e9a16595bd1dee3b44ac40a2a5c0bb3ba3db878d546c2a650ca4d2ae0bc916763e3c9ea45023e6c9b3fb87bf24ee6e502947aeb842b782fa21f4  0019-arm64-dts-qcom-sm8250-samsung-gts7xl-QCA6390-Wi-Fi-a.patch
+2b4712dcd0b87f62ceda860caed5e0c85abf39e478b1eb6dd35de351db6d866f05bc5b7b96e0487cf19381afdfde5e8cb1c93963306bd9763393477ff42004da  0020-dmaengine-qcom-gpi-reclaim-GPIIs-left-allocated-tear.patch
 "
