@@ -22,6 +22,11 @@
 #
 # Runs in the background; the hook itself returns at once.
 # gts7xl.nopowerkey on the command line disables it.
+#
+# The same file is /usr/libexec/gts7xl-powerkey in the root filesystem
+# (device-samsung-gts7xl-console, gts7xl-powerkey.service, GTS7XL_FOREGROUND=1):
+# switch_root kills this hook's shell, so the initramfs watcher does not carry
+# over (its last dd/od pair is left reading until the next press, then exits).
 
 sysfs="${GTS7XL_SYSFS:-/sys}"
 devdir="${GTS7XL_DEVINPUT:-/dev/input}"

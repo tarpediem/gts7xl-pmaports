@@ -1,0 +1,5 @@
+# Screen console (tty1) of the console UI: only critical kernel messages on it.
+# The UFS driver logs "dCurWriteBoosterBufferSize read failed -22" (KERN_ERR)
+# every few seconds and would flood the login prompt. Everything stays in dmesg
+# and the journal.
+kernel.printk = 3 4 1 3

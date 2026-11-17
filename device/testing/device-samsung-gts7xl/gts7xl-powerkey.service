@@ -1,0 +1,16 @@
+# Started by the multi-user.target.wants symlink shipped with the package (static
+# unit): `systemctl mask gts7xl-powerkey` turns it off.
+[Unit]
+Description=Power key: a short press blanks or unblanks the screen (console UI)
+Documentation=file:///usr/libexec/gts7xl-powerkey
+After=systemd-udev-trigger.service
+
+[Service]
+# The initramfs hook's watcher, kept in the foreground. systemd-logind ignores the
+# power key (HandlePowerKey=ignore from postmarketos-base-systemd), so nothing else
+# acts on it. A press of 3 s or more is ignored; the PMIC long-press reset applies.
+Environment=GTS7XL_FOREGROUND=1 GTS7XL_WAIT=60
+ExecStart=/usr/libexec/gts7xl-powerkey
+Restart=on-failure
+RestartSec=5
+

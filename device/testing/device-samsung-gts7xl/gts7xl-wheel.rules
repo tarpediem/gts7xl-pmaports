@@ -1,0 +1,26 @@
+// device-samsung-gts7xl-polkit: members of wheel manage NetworkManager and
+// power off / reboot without a password prompt, from an SSH session too (no
+// active local session there, so the polkit defaults would ask for auth_admin,
+// and a non-interactive SSH command has no agent to answer it).
+// Suspend and hibernate are left to the defaults: untested on this tablet.
+// Anything else stays as before (sudo, with the user's password).
+polkit.addRule(function(action, subject) {
+    if (!subject.isInGroup("wheel"))
+        return polkit.Result.NOT_HANDLED;
+    if (action.id.indexOf("org.freedesktop.NetworkManager.") == 0)
+        return polkit.Result.YES;
+    var power = [
+        "org.freedesktop.login1.power-off",
+        "org.freedesktop.login1.power-off-multiple-sessions",
+        "org.freedesktop.login1.power-off-ignore-inhibit",
+        "org.freedesktop.login1.reboot",
+        "org.freedesktop.login1.reboot-multiple-sessions",
+        "org.freedesktop.login1.reboot-ignore-inhibit",
+        "org.freedesktop.login1.halt",
+        "org.freedesktop.login1.halt-multiple-sessions",
+        "org.freedesktop.login1.halt-ignore-inhibit"
+    ];
+    if (power.indexOf(action.id) >= 0)
+        return polkit.Result.YES;
+    return polkit.Result.NOT_HANDLED;
+});

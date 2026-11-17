@@ -2,7 +2,7 @@
 pkgname=device-samsung-gts7xl
 pkgdesc="Samsung Galaxy Tab S7+ 5G"
 pkgver=1
-pkgrel=10
+pkgrel=11
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -11,7 +11,9 @@ depends="postmarketos-base linux-samsung-gts7xl mkbootimg i2c-tools kexec-tools
 	linux-firmware-ath11k linux-firmware-qca iw bluez-btmgmt"
 makedepends="devicepkg-dev"
 subpackages="$pkgname-sshd-keyonly:sshd_keyonly:noarch
-	$pkgname-bluetooth:bluetooth:noarch"
+	$pkgname-bluetooth:bluetooth:noarch
+	$pkgname-polkit:polkit_rules:noarch
+	$pkgname-console:console:noarch"
 source="deviceinfo
 	00-gts7xl-usb-muic.sh
 	50-gts7xl-modules.sh
@@ -24,6 +26,9 @@ source="deviceinfo
 	gts7xl-bt-addr.service
 	gts7xl-bt-addr.conf
 	gts7xl-bt-hid.conf
+	gts7xl-wheel.rules
+	gts7xl-powerkey.service
+	gts7xl-console.sysctl
 	"
 
 build() { devicepkg_build $startdir $pkgname; }
@@ -71,17 +76,39 @@ bluetooth() {
 		-t "$subpkgdir"/usr/lib/modules-load.d
 }
 
+polkit_rules() {
+	pkgdesc="polkit: wheel manages NetworkManager and power off/reboot without a prompt"
+	depends="polkit"
+	install -Dm644 "$srcdir"/gts7xl-wheel.rules \
+		"$subpkgdir"/usr/share/polkit-1/rules.d/40-gts7xl-wheel.rules
+}
+
+console() {
+	pkgdesc="Console UI: power key blanks the screen, quiet screen console"
+	install -Dm755 "$srcdir"/60-gts7xl-powerkey.sh "$subpkgdir"/usr/libexec/gts7xl-powerkey
+	install -Dm644 "$srcdir"/gts7xl-powerkey.service \
+		-t "$subpkgdir"/usr/lib/systemd/system
+	mkdir -p "$subpkgdir"/usr/lib/systemd/system/multi-user.target.wants
+	ln -s ../gts7xl-powerkey.service \
+		"$subpkgdir"/usr/lib/systemd/system/multi-user.target.wants/gts7xl-powerkey.service
+	install -Dm644 "$srcdir"/gts7xl-console.sysctl \
+		"$subpkgdir"/usr/lib/sysctl.d/60-gts7xl-console.conf
+}
+
 sha512sums="
 be16d4c6fc6eea1c21a513aa21c34a2f20774eea96760f187db95e47bf32f555fcc1eb69a0805c4fbaa5a86956b782ec0e2546f0e08c397405d43ba45c27416d  deviceinfo
 b615aa48da3603b6f6d0426bf199a8fa3a3d8e2835e863f51b5b78529d695d93c5aeafcd14e68ae32a1b8bc9c25341768457ab64681ecb9b4fac08df8d5e99d8  00-gts7xl-usb-muic.sh
 a630f2979a20cc06f8f6f2beef3db3c12deca6892cffe12e6ddbf9da43eb330fd958b002b02b1cfc0d584e512fe9b6de08c1d7686716e05365445359bd9bd819  50-gts7xl-modules.sh
-ee8073a6821c5ffd1fb9097d1c384852c3806380231bbead37e4bcde208aaededbd461795d1af30c6c03ec6d624eb4998b3cc0975b4f60a5f3794d3a92d85436  60-gts7xl-powerkey.sh
+15179ee8fb8ff4a6cd177a54ed856151165457ba77b76a2b6f068b90974fd5ce6de907d50a0c7ce17512311d06d3cdaafe5c1725bc6041b3f6f12eb3972a3be4  60-gts7xl-powerkey.sh
 a58822ce31bc485c162d9f2c77ffbbc1bb0a59fd84eac459815853cb8ce4d3796c96dfa7663c122d5a15bd2fe289c7ed24ff4de0be0be24fc1e70e5af5140569  30-gts7xl.files
 4e3df19d785212a60e31cc5b9e3edccd62808d2bd47270fabf6a4a90041163702709628583aa1c7ce5b430f6980344de6df7c72e9a7874b70d5929f86c262f4e  30-gts7xl.modules
 129278fa739191587e33371f0738f12ce2e1605be48ec840d20a67702a679e26070d98f9f8c475632ee151d2c44192b3a47b14f5823054b48a90a886118e0d77  initramfs-modprobe.conf
 cd259f84b894e21095f7d67e6679fb30614c0075074b5fab1fd06de2a7689514e3e7428c33f51e642ba23828462f7b5df7e3b52b005f999a7c988881354aab74  sshd-keyonly.conf
-2afb04a326054e3ebacc70bd708dc3ff0f2e16b596df3d0997d3a86f97d3b4c74ead78d4aaaf91b252f059ee10b395921df536de6262d14ed6b3d1709fffe393  gts7xl-bt-addr.sh
+28dbabe6de19e6f4746d55ae70606307daa7d675cd233e3ddfcfe2ce5a973d5abe6bf1d02ee55bcad63be8401f63067ef5435d97660b21e714e9991a58b2bf86  gts7xl-bt-addr.sh
 3f796dbd82dfde9c16980e7849f1cfd43f66b9bea50ec29b13a76b3457e4949b91481898fe000e4f11cd29902799c334fb971e9dd37323230dcb2e14e269f3bd  gts7xl-bt-addr.service
 26e9f92986afc3f577527644e41b0b0a498652a6596df1f3a6de9e829efff6595eb9a98a85a72121ca125faa4c915ed884fb23e3358ea3e14ce28d82d0dea20e  gts7xl-bt-addr.conf
 9c393fd06fd1c52c33ac0517678094f97f066d4e2cfd87ed3e4c4c07dd434b6e5fca6a716ce1ca34d6cc3c23931bc0bbbdd8862696164b7c8a09d9d4466cc776  gts7xl-bt-hid.conf
+156da180d98861710beccea27a362063e3952878ff06ceb6c5c60da89eb917480c442065c1d47ae7c9de65bc9b9aff7b6929158fdd2dcd9e28cd8ba590e9aa11  gts7xl-wheel.rules
+a2d5c672c4ee6d239237412be4af23881309eeb4113b100451532a74a8fdfdd70be8ba653b3ba71c8d1e994a14793ac250212bbd74dbb63cba0041cdf37c4065  gts7xl-powerkey.service
+2115ee6a1d28bceda88379101936f42faaca42e65661b1cc7b9bbd7a636780daba6d7815b30147b679996ddfd3e589ebb8153c04029b61e78745a3d6abd9f88e  gts7xl-console.sysctl
 "
