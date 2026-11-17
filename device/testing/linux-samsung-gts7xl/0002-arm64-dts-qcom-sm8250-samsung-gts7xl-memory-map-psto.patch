@@ -1,0 +1,384 @@
+From faf7bc8d358c97daed3541edea4782dd01b6e5ea Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Tue, 17 Nov 2026 08:50:51 +0700
+Subject: [PATCH] arm64: dts: qcom: sm8250-samsung-gts7xl: memory map, pstore,
+ USB, UFS, keys
+
+Describe what a first boot needs to be observable:
+
+- reserved-memory as in the device tree of the running stock kernel: the
+  firmware regions are relocated compared with sm8250.dtsi, and Samsung adds
+  debug, hypervisor (uH) and pstore areas;
+- ramoops at 0x9fa00000 with the stock layout, so the vendor kernel can
+  read the log of the previous boot;
+- simple-framebuffer on the bootloader splash (2800x1752);
+- PM8150 RPMh regulators for the USB and UFS PHYs, UFS, USB 2.0 in
+  peripheral mode, volume and power keys;
+- i2c0, where the MAX77705 MUIC that routes the USB data lines lives;
+- GPIO 20-23 (fingerprint SPI, owned by TrustZone) reserved.
+
+The PM8150B is dropped: the stock tree disables it (the MAX77705 charges).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../boot/dts/qcom/sm8250-samsung-gts7xl.dts   | 333 +++++++++++++++++-
+ 1 file changed, 330 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+index 0c25bcb16..79122cc97 100644
+--- a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
++++ b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+@@ -1,14 +1,40 @@
+ // SPDX-License-Identifier: GPL-2.0-only
+ /*
+- * Samsung Galaxy Tab S7+ 5G (SM-T976B, gts7xl) — phase 0 skeleton.
+- * Phase 1 adds reserved-memory, regulators, UFS, USB, simple-framebuffer, keys, ramoops.
++ * Samsung Galaxy Tab S7+ 5G (SM-T976B, gts7xl)
++ *
++ * Bring-up tree: memory map, pstore, boot framebuffer, keys, UFS and USB 2.0
++ * device mode. Every value comes from the device tree of the running stock
++ * kernel (T976BXXS7DXH1, board-id <8 6>) or from its kernel configuration.
+  */
+ /dts-v1/;
+ 
++#include <dt-bindings/regulator/qcom,rpmh-regulator.h>
+ #include "sm8250.dtsi"
+ #include "pm8150.dtsi"
+-#include "pm8150b.dtsi"
+ #include "pm8150l.dtsi"
++/*
++ * No pm8150b.dtsi: the stock tree disables the PM8150B at SID 2 (charging is
++ * done by the MAX77705), so there is nothing to probe there.
++ */
++
++/*
++ * Samsung's memory map moves the firmware regions: everything from the PIL
++ * images up sits at another address than in sm8250.dtsi.
++ */
++/delete-node/ &xbl_aop_mem;
++/delete-node/ &camera_mem;
++/delete-node/ &wlan_mem;
++/delete-node/ &ipa_fw_mem;
++/delete-node/ &ipa_gsi_mem;
++/delete-node/ &gpu_mem;
++/delete-node/ &npu_mem;
++/delete-node/ &video_mem;
++/delete-node/ &cvp_mem;
++/delete-node/ &cdsp_mem;
++/delete-node/ &slpi_mem;
++/delete-node/ &adsp_mem;
++/delete-node/ &spss_mem;
++/delete-node/ &cdsp_secure_heap;
+ 
+ / {
+ 	model = "Samsung Galaxy Tab S7+ 5G";
+@@ -23,5 +49,306 @@ chosen {
+ 		#address-cells = <2>;
+ 		#size-cells = <2>;
+ 		ranges;
++
++		/* Bootloader splash: 2800x1752 panel, left running by the ABL. */
++		framebuffer: framebuffer@9c000000 {
++			compatible = "simple-framebuffer";
++			reg = <0x0 0x9c000000 0x0 0x2300000>;
++			width = <2800>;
++			height = <1752>;
++			stride = <(2800 * 4)>;
++			format = "a8r8g8b8";
++		};
++	};
++
++	gpio-keys {
++		compatible = "gpio-keys";
++
++		pinctrl-names = "default";
++		pinctrl-0 = <&vol_up_n>;
++
++		key-vol-up {
++			label = "Volume Up";
++			gpios = <&pm8150l_gpios 3 GPIO_ACTIVE_LOW>;
++			linux,code = <KEY_VOLUMEUP>;
++			debounce-interval = <15>;
++			linux,can-disable;
++			wakeup-source;
++		};
++	};
++
++	reserved-memory {
++		xbl_aop_mem: xbl-aop@80603000 {
++			reg = <0x0 0x80603000 0x0 0x25d000>;
++			no-map;
++		};
++
++		slpi_mem: slpi@89200000 {
++			reg = <0x0 0x89200000 0x0 0x1500000>;
++			no-map;
++		};
++
++		adsp_mem: adsp@8a700000 {
++			reg = <0x0 0x8a700000 0x0 0x2c00000>;
++			no-map;
++		};
++
++		spss_mem: spss@8d300000 {
++			reg = <0x0 0x8d300000 0x0 0x100000>;
++			no-map;
++		};
++
++		npu_mem: npu@8d400000 {
++			reg = <0x0 0x8d400000 0x0 0x500000>;
++			no-map;
++		};
++
++		video_mem: video@8d900000 {
++			reg = <0x0 0x8d900000 0x0 0x500000>;
++			no-map;
++		};
++
++		cvp_mem: cvp@8de00000 {
++			reg = <0x0 0x8de00000 0x0 0x500000>;
++			no-map;
++		};
++
++		cdsp_mem: cdsp@8e300000 {
++			reg = <0x0 0x8e300000 0x0 0x1a00000>;
++			no-map;
++		};
++
++		camera_mem: camera@8fd00000 {
++			reg = <0x0 0x8fd00000 0x0 0x500000>;
++			no-map;
++		};
++
++		wlan_mem: wlan@90200000 {
++			reg = <0x0 0x90200000 0x0 0x100000>;
++			no-map;
++		};
++
++		ipa_fw_mem: ipa-fw@90300000 {
++			reg = <0x0 0x90300000 0x0 0x10000>;
++			no-map;
++		};
++
++		ipa_gsi_mem: ipa-gsi@90310000 {
++			reg = <0x0 0x90310000 0x0 0xa000>;
++			no-map;
++		};
++
++		gpu_mem: gpu@9031a000 {
++			reg = <0x0 0x9031a000 0x0 0x2000>;
++			no-map;
++		};
++
++		cdsp_secure_heap: cdsp-secure-heap@90400000 {
++			reg = <0x0 0x90400000 0x0 0x600000>;
++			no-map;
++		};
++
++		cont_splash_mem: cont-splash@9c000000 {
++			reg = <0x0 0x9c000000 0x0 0x2300000>;
++			no-map;
++		};
++
++		dfps_data_mem: dfps-data@9e300000 {
++			reg = <0x0 0x9e300000 0x0 0x100000>;
++			no-map;
++		};
++
++		/* Samsung debug areas, written by the bootloader and by TrustZone. */
++		sec-debug@9f000000 {
++			reg = <0x0 0x9f000000 0x0 0x800000>;
++			no-map;
++		};
++
++		ss-plog@9f800000 {
++			reg = <0x0 0x9f800000 0x0 0x200000>;
++			no-map;
++		};
++
++		/*
++		 * Same layout as the stock kernel, so that One UI can read the
++		 * log of the previous mainline boot from /sys/fs/pstore.
++		 */
++		ramoops@9fa00000 {
++			compatible = "ramoops";
++			reg = <0x0 0x9fa00000 0x0 0x100000>;
++			record-size = <0x40000>;
++			console-size = <0x40000>;
++			ftrace-size = <0x40000>;
++			pmsg-size = <0x40000>;
++			no-map;
++		};
++
++		hdm@9fb00000 {
++			reg = <0x0 0x9fb00000 0x0 0x1000>;
++			no-map;
++		};
++
++		kaslr@a0001000 {
++			reg = <0x0 0xa0001000 0x0 0x1000>;
++			no-map;
++		};
++
++		/* Samsung hypervisor (uH): TIMA, RKP and its heap. */
++		tima@b0100000 {
++			reg = <0x0 0xb0100000 0x0 0x100000>;
++			no-map;
++		};
++
++		rkp@b0200000 {
++			reg = <0x0 0xb0200000 0x0 0x200000>;
++			no-map;
++		};
++
++		uh-heap@b0400000 {
++			reg = <0x0 0xb0400000 0x0 0x1800000>;
++			no-map;
++		};
++
++		sec-debug-rdx@100000000 {
++			reg = <0x1 0x00000000 0x0 0xad00000>;
++			no-map;
++		};
+ 	};
+ };
++
++&apps_rsc {
++	regulators-0 {
++		compatible = "qcom,pm8150-rpmh-regulators";
++		qcom,pmic-id = "a";
++
++		vreg_s4a_1p8: smps4 {
++			regulator-name = "vreg_s4a_1p8";
++			regulator-min-microvolt = <1800000>;
++			regulator-max-microvolt = <1920000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++		};
++
++		vreg_l2a_3p1: ldo2 {
++			regulator-name = "vreg_l2a_3p1";
++			regulator-min-microvolt = <3072000>;
++			regulator-max-microvolt = <3072000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++		};
++
++		vreg_l5a_0p88: ldo5 {
++			regulator-name = "vreg_l5a_0p88";
++			regulator-min-microvolt = <880000>;
++			regulator-max-microvolt = <880000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++		};
++
++		vreg_l6a_1p2: ldo6 {
++			regulator-name = "vreg_l6a_1p2";
++			regulator-min-microvolt = <1200000>;
++			regulator-max-microvolt = <1200000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++		};
++
++		vreg_l9a_1p2: ldo9 {
++			regulator-name = "vreg_l9a_1p2";
++			regulator-min-microvolt = <1200000>;
++			regulator-max-microvolt = <1200000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++		};
++
++		vreg_l12a_1p8: ldo12 {
++			regulator-name = "vreg_l12a_1p8";
++			regulator-min-microvolt = <1800000>;
++			regulator-max-microvolt = <1800000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++		};
++
++		vreg_l17a_3p0: ldo17 {
++			regulator-name = "vreg_l17a_3p0";
++			regulator-min-microvolt = <2496000>;
++			regulator-max-microvolt = <3008000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++		};
++	};
++};
++
++/*
++ * MAX77705 (charger, fuel gauge, USB-C and MUIC) sits on this bus. There is
++ * no MUIC driver yet: the initramfs switches the USB data lines to the SoC
++ * through /dev/i2c-N (MUIC at 0x25), so the bus only has to exist.
++ */
++&i2c0 {
++	status = "okay";
++};
++
++&pm8150l_gpios {
++	vol_up_n: vol-up-n-state {
++		pins = "gpio3";
++		function = "normal";
++		power-source = <0>;
++		input-enable;
++		bias-pull-up;
++	};
++};
++
++&pon_pwrkey {
++	status = "okay";
++};
++
++&pon_resin {
++	linux,code = <KEY_VOLUMEDOWN>;
++	status = "okay";
++};
++
++&qupv3_id_0 {
++	status = "okay";
++};
++
++&removed_mem {
++	reg = <0x0 0x80b00000 0x0 0x7900000>;
++};
++
++&tlmm {
++	/* SPI of the fingerprint sensor, owned by TrustZone */
++	gpio-reserved-ranges = <20 4>;
++};
++
++&ufs_mem_hc {
++	vcc-supply = <&vreg_l17a_3p0>;
++	vcc-max-microamp = <800000>;
++	vccq-supply = <&vreg_l6a_1p2>;
++	vccq-max-microamp = <800000>;
++	vccq2-supply = <&vreg_s4a_1p8>;
++	vccq2-max-microamp = <800000>;
++
++	status = "okay";
++};
++
++&ufs_mem_phy {
++	vdda-phy-supply = <&vreg_l5a_0p88>;
++	vdda-pll-supply = <&vreg_l9a_1p2>;
++
++	status = "okay";
++};
++
++&usb_1 {
++	/* USB 2.0 only for now: no QMP PHY, so no pipe clock */
++	qcom,select-utmi-as-pipe-clk;
++
++	status = "okay";
++};
++
++&usb_1_dwc3 {
++	dr_mode = "peripheral";
++	maximum-speed = "high-speed";
++	phys = <&usb_1_hsphy>;
++	phy-names = "usb2-phy";
++};
++
++&usb_1_hsphy {
++	vdda-pll-supply = <&vreg_l5a_0p88>;
++	vdda18-supply = <&vreg_l12a_1p8>;
++	vdda33-supply = <&vreg_l2a_3p1>;
++
++	status = "okay";
++};
+-- 
+2.56.0
+

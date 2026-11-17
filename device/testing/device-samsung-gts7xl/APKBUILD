@@ -2,17 +2,30 @@
 pkgname=device-samsung-gts7xl
 pkgdesc="Samsung Galaxy Tab S7+ 5G"
 pkgver=1
-pkgrel=2
+pkgrel=4
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
 options="!check !archcheck"
-depends="postmarketos-base linux-samsung-gts7xl mkbootimg"
+depends="postmarketos-base linux-samsung-gts7xl mkbootimg i2c-tools"
 makedepends="devicepkg-dev"
-source="deviceinfo"
+source="deviceinfo
+	00-gts7xl-usb-muic.sh
+	30-gts7xl.files
+	"
 
 build() { devicepkg_build $startdir $pkgname; }
-package() { devicepkg_package $startdir $pkgname; }
+package() {
+	devicepkg_package $startdir $pkgname
+
+	# USB data lines go through the MAX77705 MUIC: see the hook.
+	install -Dm755 "$srcdir"/00-gts7xl-usb-muic.sh \
+		-t "$pkgdir"/usr/share/mkinitfs/hooks
+	install -Dm644 "$srcdir"/30-gts7xl.files \
+		-t "$pkgdir"/usr/share/mkinitfs/files
+}
 sha512sums="
-d6cea9529ab230df02a1c86fd41a5450f2555b2aa48b0d413381fd4ecd2ca03c89ad5893a7b37a11f6efedd38672a1319740948f0914dfe593fa76d3d9d4cb5c  deviceinfo
+7453652308ae3e2f8775452998edd0e1bf590123f0c750ab3f26f0d57bd72314d0ae6db97c15a6830106ed912cb9054850a2658b6f3b9dd0922d95c42692544a  deviceinfo
+657b87a026ee4a46c5d5cff29845a1c7e4d8556f4ca2178e14994bffbf2ca543721676716fc774c055d8a557357aa5ee04bdbb4c7cfe014851adc62edb5bbaab  00-gts7xl-usb-muic.sh
+31f355774f5413171a557f9e410d835e7a0d3f58c679421cb9e459fd21f27fa8c70ab2b728ccca6724bb38ddedd2138c4988df220c01a53688d4680142b7c93e  30-gts7xl.files
 "

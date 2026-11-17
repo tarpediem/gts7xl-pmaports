@@ -8,10 +8,16 @@ deviceinfo_arch="aarch64"
 deviceinfo_chassis="tablet"
 deviceinfo_keyboard="false"
 deviceinfo_external_storage="true"
-deviceinfo_screen_width="1752"
-deviceinfo_screen_height="2800"
-deviceinfo_getty="ttyMSM0;115200"
-deviceinfo_kernel_cmdline="console=ttyMSM0,115200 console=tty0 clk_ignore_unused pd_ignore_unused panic=5 PMOS_NO_OUTPUT_REDIRECT"
+deviceinfo_screen_width="2800"
+deviceinfo_screen_height="1752"
+# First-boot cmdline:
+# - console=tty0: kernel log on the bootloader framebuffer (simple-framebuffer);
+# - clk_ignore_unused pd_ignore_unused: keep what the bootloader turned on (display);
+# - cpuidle.off=1: no deep idle yet (the stock cmdline has lpm_levels.sleep_disabled=1);
+# - panic=5: reboot after a panic, the log stays in ramoops for One UI;
+# - pmos.debug-shell: the initramfs stops in its debug shell (telnet 172.16.42.1 over
+#   USB, getty on the screen) instead of looking for a root filesystem.
+deviceinfo_kernel_cmdline="console=tty0 clk_ignore_unused pd_ignore_unused cpuidle.off=1 panic=5 pmos.debug-shell"
 deviceinfo_generate_bootimg="true"
 deviceinfo_header_version="2"
 deviceinfo_bootimg_qcdt="false"
