@@ -2,7 +2,7 @@
 pkgname=device-samsung-gts7xl
 pkgdesc="Samsung Galaxy Tab S7+ 5G"
 pkgver=1
-pkgrel=9
+pkgrel=10
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -10,6 +10,8 @@ options="!check !archcheck"
 depends="postmarketos-base linux-samsung-gts7xl mkbootimg i2c-tools kexec-tools
 	linux-firmware-ath11k linux-firmware-qca iw bluez-btmgmt"
 makedepends="devicepkg-dev"
+subpackages="$pkgname-sshd-keyonly:sshd_keyonly:noarch
+	$pkgname-bluetooth:bluetooth:noarch"
 source="deviceinfo
 	00-gts7xl-usb-muic.sh
 	50-gts7xl-modules.sh
@@ -17,6 +19,11 @@ source="deviceinfo
 	30-gts7xl.files
 	30-gts7xl.modules
 	initramfs-modprobe.conf
+	sshd-keyonly.conf
+	gts7xl-bt-addr.sh
+	gts7xl-bt-addr.service
+	gts7xl-bt-addr.conf
+	gts7xl-bt-hid.conf
 	"
 
 build() { devicepkg_build $startdir $pkgname; }
@@ -44,12 +51,37 @@ package() {
 	install -Dm755 "$srcdir"/60-gts7xl-powerkey.sh \
 		-t "$pkgdir"/usr/share/mkinitfs/hooks
 }
+
+sshd_keyonly() {
+	pkgdesc="SSH login with a key only (no password, no root)"
+	depends="openssh-server"
+	install -Dm644 "$srcdir"/sshd-keyonly.conf \
+		"$subpkgdir"/etc/ssh/sshd_config.d/40-gts7xl-keyonly.conf
+}
+
+bluetooth() {
+	pkgdesc="bluez with a stable hci0 address (from /etc/machine-id) and HID modules"
+	depends="bluez bluez-btmgmt"
+	install -Dm755 "$srcdir"/gts7xl-bt-addr.sh "$subpkgdir"/usr/libexec/gts7xl-bt-addr
+	install -Dm644 "$srcdir"/gts7xl-bt-addr.service \
+		-t "$subpkgdir"/usr/lib/systemd/system
+	install -Dm644 "$srcdir"/gts7xl-bt-addr.conf \
+		-t "$subpkgdir"/usr/lib/systemd/system/bluetooth.service.d
+	install -Dm644 "$srcdir"/gts7xl-bt-hid.conf \
+		-t "$subpkgdir"/usr/lib/modules-load.d
+}
+
 sha512sums="
-9d3c5971799d2216b9b141aa6209672db1773bc728d5e3f0a7b10f21d02fe355809b8a0c77f20a1db8ef078a85f9f56fd6791c8f8a1329419f31c776f106a80f  deviceinfo
+be16d4c6fc6eea1c21a513aa21c34a2f20774eea96760f187db95e47bf32f555fcc1eb69a0805c4fbaa5a86956b782ec0e2546f0e08c397405d43ba45c27416d  deviceinfo
 b615aa48da3603b6f6d0426bf199a8fa3a3d8e2835e863f51b5b78529d695d93c5aeafcd14e68ae32a1b8bc9c25341768457ab64681ecb9b4fac08df8d5e99d8  00-gts7xl-usb-muic.sh
-d880b7f542ec59afc07cdefaa2f6287fb47a4d8b78100a9e08a99f19e3d77ee05a935f10fa9907195ba73aa3181366fa1acf02b6518587753048e579a5dbadae  50-gts7xl-modules.sh
+a630f2979a20cc06f8f6f2beef3db3c12deca6892cffe12e6ddbf9da43eb330fd958b002b02b1cfc0d584e512fe9b6de08c1d7686716e05365445359bd9bd819  50-gts7xl-modules.sh
 ee8073a6821c5ffd1fb9097d1c384852c3806380231bbead37e4bcde208aaededbd461795d1af30c6c03ec6d624eb4998b3cc0975b4f60a5f3794d3a92d85436  60-gts7xl-powerkey.sh
 a58822ce31bc485c162d9f2c77ffbbc1bb0a59fd84eac459815853cb8ce4d3796c96dfa7663c122d5a15bd2fe289c7ed24ff4de0be0be24fc1e70e5af5140569  30-gts7xl.files
 4e3df19d785212a60e31cc5b9e3edccd62808d2bd47270fabf6a4a90041163702709628583aa1c7ce5b430f6980344de6df7c72e9a7874b70d5929f86c262f4e  30-gts7xl.modules
 129278fa739191587e33371f0738f12ce2e1605be48ec840d20a67702a679e26070d98f9f8c475632ee151d2c44192b3a47b14f5823054b48a90a886118e0d77  initramfs-modprobe.conf
+cd259f84b894e21095f7d67e6679fb30614c0075074b5fab1fd06de2a7689514e3e7428c33f51e642ba23828462f7b5df7e3b52b005f999a7c988881354aab74  sshd-keyonly.conf
+2afb04a326054e3ebacc70bd708dc3ff0f2e16b596df3d0997d3a86f97d3b4c74ead78d4aaaf91b252f059ee10b395921df536de6262d14ed6b3d1709fffe393  gts7xl-bt-addr.sh
+3f796dbd82dfde9c16980e7849f1cfd43f66b9bea50ec29b13a76b3457e4949b91481898fe000e4f11cd29902799c334fb971e9dd37323230dcb2e14e269f3bd  gts7xl-bt-addr.service
+26e9f92986afc3f577527644e41b0b0a498652a6596df1f3a6de9e829efff6595eb9a98a85a72121ca125faa4c915ed884fb23e3358ea3e14ce28d82d0dea20e  gts7xl-bt-addr.conf
+9c393fd06fd1c52c33ac0517678094f97f066d4e2cfd87ed3e4c4c07dd434b6e5fca6a716ce1ca34d6cc3c23931bc0bbbdd8862696164b7c8a09d9d4466cc776  gts7xl-bt-hid.conf
 "

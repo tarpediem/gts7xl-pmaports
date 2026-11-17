@@ -13,6 +13,12 @@
 # A kernel oops still panics (oops=panic): boot with gts7xl.nomodules on the
 # command line (kexec) to skip this hook, gts7xl.nowireless to skip only the
 # Wi-Fi/Bluetooth modules.
+#
+# Without pmos.debug-shell (boot to the root filesystem) the hook still waits
+# for telnetd, in case the boot ends in the debug shell anyway (Volume Down
+# held, or a failed boot), but on timeout it loads nothing: the root
+# filesystem's udev autoloads these modules (the blacklist is initramfs only),
+# and switch_root kills this background job.
 
 modules="${GTS7XL_MODULES-stmfts1b}"
 wireless="${GTS7XL_WIRELESS_MODULES-pwrseq_qcom_wcn pci_pwrctrl_pwrseq ath11k_pci qrtr_mhi hci_uart}"
@@ -36,6 +42,9 @@ if [ -n "$wireless" ] && grep -qw gts7xl.nowireless "$cmdline" 2>/dev/null; then
 	wireless=""
 fi
 
+debug_shell=0
+grep -qw pmos.debug-shell "$cmdline" 2>/dev/null && debug_shell=1
+
 probe() {
 	for m in "$@"; do
 		if modprobe "$m"; then
@@ -49,7 +58,14 @@ probe() {
 load() {
 	n=0
 	while ! pgrep telnetd > /dev/null 2>&1; do
-		[ "$n" -ge "$wait_s" ] && { log "no telnetd after ${wait_s}s, loading anyway"; break; }
+		if [ "$n" -ge "$wait_s" ]; then
+			if [ "$debug_shell" = 0 ]; then
+				log "no telnetd after ${wait_s}s and no pmos.debug-shell: leaving the modules to the root filesystem"
+				return 0
+			fi
+			log "no telnetd after ${wait_s}s, loading anyway"
+			break
+		fi
 		sleep "$poll"
 		n=$((n + 1))
 	done

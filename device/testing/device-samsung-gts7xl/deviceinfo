@@ -21,9 +21,12 @@ deviceinfo_screen_height="1752"
 #   off) is a panic too, so most hangs end in a reboot by themselves;
 # - reboot=warm: that reboot is a warm reset (PSCI SYSTEM_RESET2 + PMIC PS_HOLD type,
 #   kernel patch 0003), so the log stays in ramoops for One UI;
-# - pmos.debug-shell: the initramfs stops in its debug shell (telnet 172.16.42.1 over
-#   USB, getty on the screen) instead of looking for a root filesystem.
-deviceinfo_kernel_cmdline="console=tty0 clk_ignore_unused pd_ignore_unused regulator_ignore_unused cpuidle.off=1 panic=5 oops=panic softlockup_panic=1 nmi_watchdog=panic reboot=warm pmos.debug-shell"
+# - no pmos.debug-shell (since r10): the initramfs goes on to the root filesystem
+#   (subpartitions in userdata, found by pmos_root_uuid). It still stops in its debug
+#   shell (telnet 172.16.42.1 over USB) when Volume Down is held while it runs its
+#   hooks, or when the root filesystem cannot be found or mounted; kexec with
+#   --append pmos.debug-shell gets there on purpose.
+deviceinfo_kernel_cmdline="console=tty0 clk_ignore_unused pd_ignore_unused regulator_ignore_unused cpuidle.off=1 panic=5 oops=panic softlockup_panic=1 nmi_watchdog=panic reboot=warm"
 deviceinfo_generate_bootimg="true"
 deviceinfo_header_version="2"
 deviceinfo_bootimg_qcdt="false"

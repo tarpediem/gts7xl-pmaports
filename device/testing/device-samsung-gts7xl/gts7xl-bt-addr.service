@@ -1,0 +1,10 @@
+[Unit]
+Description=Stable Bluetooth address for hci0 (from /etc/machine-id)
+Documentation=file:///usr/libexec/gts7xl-bt-addr
+After=systemd-udev-trigger.service systemd-machine-id-commit.service
+Before=bluetooth.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/gts7xl-bt-addr
