@@ -1,0 +1,12 @@
+#!/bin/sh
+# Hyprland session for the gts7xl (greetd starts it on tty1). On the first start, copy the
+# device defaults into ~/.config (never overwrites an existing file), then run Hyprland.
+d=/usr/share/gts7xl/hyprland
+c=${XDG_CONFIG_HOME:-$HOME/.config}
+seed() { [ -e "$2" ] || { mkdir -p "$(dirname "$2")" && cp "$1" "$2"; }; }
+seed "$d/hyprland.conf" "$c/hypr/hyprland.conf"
+seed "$d/waybar.jsonc" "$c/waybar/config.jsonc"
+seed "$d/waybar.css" "$c/waybar/style.css"
+seed "$d/foot.ini" "$c/foot/foot.ini"
+export XDG_CURRENT_DESKTOP=Hyprland XDG_SESSION_TYPE=wayland XDG_SESSION_DESKTOP=Hyprland
+exec start-hyprland

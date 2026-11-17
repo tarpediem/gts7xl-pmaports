@@ -1,0 +1,12 @@
+# Written by device-samsung-gts7xl-hyprland (post-install) when /etc/greetd/config.toml did
+# not exist. tty1: log in USER automatically once at boot, tuigreet after a logout.
+[terminal]
+vt = 1
+
+[default_session]
+command = "tuigreet --time --remember --asterisks --cmd gts7xl-hyprland"
+user = "greetd"
+
+[initial_session]
+command = "gts7xl-hyprland"
+user = "@USER@"

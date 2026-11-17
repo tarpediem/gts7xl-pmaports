@@ -1,0 +1,35 @@
+// Samsung Galaxy Tab S7+ 5G: device defaults for waybar (seeded into ~/.config/waybar).
+{
+	"layer": "top",
+	"position": "top",
+	"height": 34,
+	"modules-left": ["custom/launcher", "custom/terminal", "custom/keyboard", "hyprland/workspaces"],
+	"modules-center": ["clock"],
+	"modules-right": ["network", "backlight", "battery", "custom/close"],
+	"custom/launcher": { "format": "  ", "on-click": "fuzzel", "tooltip": false },
+	"custom/terminal": { "format": "  ", "on-click": "foot", "tooltip": false },
+	"custom/keyboard": { "format": " 󰌌 ", "on-click": "pkill -RTMIN wvkbd-mobintl", "tooltip": false },
+	"custom/close": { "format": " 󰅖 ", "on-click": "hyprctl dispatch killactive", "tooltip": false },
+	"hyprland/workspaces": { "format": "{id}" },
+	"clock": { "format": "{:%H:%M}", "format-alt": "{:%a %d %b %H:%M}" },
+	"network": {
+		"format-wifi": "󰖩 {essid}",
+		"format-ethernet": "󰈀 {ipaddr}",
+		"format-disconnected": "󰖪",
+		"on-click": "foot -e nmtui"
+	},
+	"backlight": {
+		"device": "ae94000.dsi.0",
+		"format": "󰃠 {percent}%",
+		"on-scroll-up": "brightnessctl -q set 5%+",
+		"on-scroll-down": "brightnessctl -q set 5%-"
+	},
+	"battery": {
+		"bat": "max170xx_battery",
+		"adapter": "max77705-charger",
+		"interval": 30,
+		"format": "{icon} {capacity}%",
+		"format-charging": "󰂄 {capacity}%",
+		"format-icons": ["󰁺", "󰁼", "󰁾", "󰂀", "󰁹"]
+	}
+}

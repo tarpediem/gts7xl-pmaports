@@ -1,0 +1,10 @@
+#!/bin/sh
+# Power key under Hyprland: toggle the panel with DPMS (the console's fb0/blank does not
+# apply while Hyprland holds the DRM master). gts7xl-powerkey still inhibits/uninhibits the
+# touchscreen on the same press.
+on=$(hyprctl -j monitors | jq -r '.[] | select(.name == "DSI-1") | .dpmsStatus')
+if [ "$on" = true ]; then
+	exec hyprctl dispatch dpms off DSI-1
+else
+	exec hyprctl dispatch dpms on DSI-1
+fi

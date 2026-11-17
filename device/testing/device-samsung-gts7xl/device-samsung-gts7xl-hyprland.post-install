@@ -1,0 +1,17 @@
+#!/bin/sh
+# greetd on tty1 instead of kmscon; other VTs keep their getty (Ctrl+Alt+F2).
+if [ ! -e /etc/greetd/config.toml ]; then
+	# First regular user in the video group, else the first regular user.
+	users=$(getent passwd | awk -F: '$3 >= 10000 && $3 < 60000 { print $1 }')
+	user=
+	for u in $users; do
+		id -nG "$u" | tr ' ' '\n' | grep -qx video && { user=$u; break; }
+	done
+	[ -n "$user" ] || user=$(echo "$users" | head -n1)
+	mkdir -p /etc/greetd
+	sed "s/@USER@/${user:-user}/" /usr/share/gts7xl/hyprland/greetd.toml > /etc/greetd/config.toml
+fi
+rm -f /etc/systemd/system/getty.target.wants/kmsconvt@tty1.service
+mkdir -p /etc/systemd/system
+ln -sf /usr/lib/systemd/system/greetd.service /etc/systemd/system/display-manager.service
+exit 0

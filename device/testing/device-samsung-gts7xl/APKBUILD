@@ -2,7 +2,7 @@
 pkgname=device-samsung-gts7xl
 pkgdesc="Samsung Galaxy Tab S7+ 5G"
 pkgver=1
-pkgrel=12
+pkgrel=13
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
@@ -10,11 +10,13 @@ options="!check !archcheck"
 depends="postmarketos-base linux-samsung-gts7xl mkbootimg i2c-tools kexec-tools
 	linux-firmware-ath11k linux-firmware-qca iw bluez-btmgmt"
 makedepends="devicepkg-dev"
+install="$pkgname-hyprland.post-install"
 subpackages="$pkgname-sshd-keyonly:sshd_keyonly:noarch
 	$pkgname-bluetooth:bluetooth:noarch
 	$pkgname-polkit:polkit_rules:noarch
 	$pkgname-console:console:noarch
-	$pkgname-nonfree-firmware:nonfree_firmware:noarch"
+	$pkgname-nonfree-firmware:nonfree_firmware:noarch
+	$pkgname-hyprland:hyprland:noarch"
 source="deviceinfo
 	00-gts7xl-usb-muic.sh
 	50-gts7xl-modules.sh
@@ -30,6 +32,13 @@ source="deviceinfo
 	gts7xl-wheel.rules
 	gts7xl-powerkey.service
 	gts7xl-console.sysctl
+	gts7xl-hyprland
+	gts7xl-hypr-dpms
+	hypr-hyprland.conf
+	hypr-waybar.jsonc
+	hypr-waybar.css
+	hypr-foot.ini
+	hypr-greetd.toml
 	"
 
 build() { devicepkg_build $startdir $pkgname; }
@@ -84,6 +93,17 @@ polkit_rules() {
 		"$subpkgdir"/usr/share/polkit-1/rules.d/40-gts7xl-wheel.rules
 }
 
+hyprland() {
+	pkgdesc="Hyprland on tty1 (greetd autologin), touch-friendly bar, on-screen keyboard"
+	depends="hyprland greetd greetd-tuigreet foot waybar fuzzel wvkbd swaybg brightnessctl
+		grim slurp jq networkmanager-tui font-jetbrains-mono-nerd xdg-desktop-portal-hyprland"
+	install -Dm755 "$srcdir"/gts7xl-hyprland "$srcdir"/gts7xl-hypr-dpms -t "$subpkgdir"/usr/bin
+	local f
+	for f in hyprland.conf waybar.jsonc waybar.css foot.ini greetd.toml; do
+		install -Dm644 "$srcdir"/hypr-$f "$subpkgdir"/usr/share/gts7xl/hyprland/$f
+	done
+}
+
 nonfree_firmware() {
 	pkgdesc="GPU firmware: Adreno 650 SQE/GMU (linux-firmware) and the device zap shader"
 	# firmware-samsung-gts7xl-gpu is built locally only (Samsung-signed file,
@@ -120,4 +140,11 @@ cd259f84b894e21095f7d67e6679fb30614c0075074b5fab1fd06de2a7689514e3e7428c33f51e64
 156da180d98861710beccea27a362063e3952878ff06ceb6c5c60da89eb917480c442065c1d47ae7c9de65bc9b9aff7b6929158fdd2dcd9e28cd8ba590e9aa11  gts7xl-wheel.rules
 a2d5c672c4ee6d239237412be4af23881309eeb4113b100451532a74a8fdfdd70be8ba653b3ba71c8d1e994a14793ac250212bbd74dbb63cba0041cdf37c4065  gts7xl-powerkey.service
 2115ee6a1d28bceda88379101936f42faaca42e65661b1cc7b9bbd7a636780daba6d7815b30147b679996ddfd3e589ebb8153c04029b61e78745a3d6abd9f88e  gts7xl-console.sysctl
+df6977fba68c2b573bba0f9d2f0df5d452f4de967dfbd97bcd73db6494053b65ba0d92931ed052cb33607a75555d0388e87c2e3b77370f701a6455a8c462674b  gts7xl-hyprland
+457c24f4e495ff1c5cdebf2581dc509444aee2659bc67e1edc63d73f90fdafc083f6ccd32900151ce0d046b11002a6cf425c02b8b9825c68aca097439036e8c8  gts7xl-hypr-dpms
+93c7228074c62022e8d62370973667c81ced5ce6932fe6e13f28f000484e2bfc9860c357466c3375b61262e55abc186a3e6b6f08ed6cc1e665c00a999a4e911e  hypr-hyprland.conf
+e2e40d43062525d268730148e0a4c5986c3445e2aa27ea8d27c9a33c3003d3c9076e11d85bfa7d856df01e77c94a1b7e1b519a6e93cd5fe559894547c248782d  hypr-waybar.jsonc
+2dc856ba87e19feb397473365988a4e061eda8e1216b60c1b5fbf1d736959ba8fec4f99f818b3326efacc9a0c0868f38522e4d0096f69db401dfa178fae6041c  hypr-waybar.css
+32b767e29b4d4f1024e72a4a28e687f5af4dec60a90c4a53ae8c731323b83aeadf384ee416383dc6180907a6ad0975cf12456afb8a1f70afe1ffc30649c7fb97  hypr-foot.ini
+3191323ea8454497026bb1057a6286b193c0c550ec742544d5ef689095ac435c8bb42f0d1c57e28b167ca6fff85e90bc14f73467ff9c952f5570588a8e0c5b6c  hypr-greetd.toml
 "
