@@ -2,7 +2,7 @@
 # Kernel config based on: linux-postmarketos-qcom-sm8250 (refreshed with olddefconfig)
 pkgname=linux-samsung-gts7xl
 pkgver=7.3.4
-pkgrel=14
+pkgrel=15
 pkgdesc="Mainline kernel for Samsung Galaxy Tab S7+ 5G (gts7xl)"
 arch="aarch64"
 _carch="arm64"
@@ -48,6 +48,9 @@ source="https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-$pkgver.tar.xz
 	0018-arm64-kexec-no-kCFI-check-on-the-jump-to-the-relocat.patch
 	0019-arm64-dts-qcom-sm8250-samsung-gts7xl-QCA6390-Wi-Fi-a.patch
 	0020-dmaengine-qcom-gpi-reclaim-GPIIs-left-allocated-tear.patch
+	0021-power-supply-max17042-match-maxim-max77705-battery-o.patch
+	0022-power-supply-max77705-optional-battery-temperature-s.patch
+	0023-arm64-dts-qcom-sm8250-samsung-gts7xl-MAX77705-charge.patch
 	"
 builddir="$srcdir/linux-$pkgver"
 
@@ -89,7 +92,7 @@ package() {
 }
 sha512sums="
 db5508c3cf8b613b4680022eb785c036bcf8a5c952f8d0b2f3c2c7dc16779cf8bd954e0bca0b0b52451bac61430a687ae73205574f002f3b60de886640ebb9b0  linux-7.3.4.tar.xz
-c1a43c7e8a17c5788503363a3bc831a5501601b7be46dfb29fff2be63af9613495187a92944256f1c4222665a30aed0e1cebd4b1d02bebd58ee049473904389d  config-samsung-gts7xl.aarch64
+1bb3d3e56b20f4e293bc5a7d672df6e2f218688b29f2e0277d6d4a0fda7f4b8c7baed22b430273f5727d87c456666145b473f4cb4bc7f921a24058944038ad85  config-samsung-gts7xl.aarch64
 7a204395b5be27b4af1828cd46ab6753288b0157bb01cdc46a6d3953ba23ea0b5300ab1bec7fac5730abb989dcd1eb6f53c411631cdbde136eafe81a4492ace0  0001-arm64-dts-qcom-sm8250-add-Samsung-Galaxy-Tab-S7-5G-s.patch
 e9e85e11505b5c2d0a3433d40c98005cf1aa6bb95569ade6dbef41f6537faf0724c79f1acc1d53c2281290fcba6573d7283ad745c59e8921c2221b63cca0dddf  0002-arm64-dts-qcom-sm8250-samsung-gts7xl-memory-map-psto.patch
 cd923fabbb4fec9421cae5a7fd9b9c4e1f09099f42e622e5be437f30c422fa932f5091b84ce8bf665e1fa297f40b28b542fdf9ffbac47b103ffc9fb67456c682  0003-Input-pm8941-pwrkey-select-the-warm-PS_HOLD-reset-at.patch
@@ -110,4 +113,7 @@ c75a6c8f1b90cecb1f728dd3e4b8030d3842d768652f59df0d314c5938fea9339e93f03962c9dfd0
 087ee78929e306d9719e525d1603f3a8d89866fb3d8962bf9fe611d7961ab1df14df657cd0a2cf618f779944b36c323ff1eaab9e9de08460d8e4de4935b8b1ab  0018-arm64-kexec-no-kCFI-check-on-the-jump-to-the-relocat.patch
 1c240312d530e9a16595bd1dee3b44ac40a2a5c0bb3ba3db878d546c2a650ca4d2ae0bc916763e3c9ea45023e6c9b3fb87bf24ee6e502947aeb842b782fa21f4  0019-arm64-dts-qcom-sm8250-samsung-gts7xl-QCA6390-Wi-Fi-a.patch
 2b4712dcd0b87f62ceda860caed5e0c85abf39e478b1eb6dd35de351db6d866f05bc5b7b96e0487cf19381afdfde5e8cb1c93963306bd9763393477ff42004da  0020-dmaengine-qcom-gpi-reclaim-GPIIs-left-allocated-tear.patch
+4c87b4574b7e37b02d936ac4d0b28ea1d9c305b8cc516e42b4b605f5b0bffbe607241a5d56c25825b32c0efe6c3bd6d3e7732ee03a6e38a8ba9d977e04e4353a  0021-power-supply-max17042-match-maxim-max77705-battery-o.patch
+a58de07ba9f2b868c1dbef7e38690521c5c0e2c1e41a2e9e6bafd6d8eeebd541bd50cffee14b167dd3fd3662aeb3216bf4e2546612f5e85d37a155f943ce3763  0022-power-supply-max77705-optional-battery-temperature-s.patch
+c286cf1ee01f4f77f4db7c5d9609ea9211df3b5f95dfec3f706864492765afd354f206c10c842b6fd27e07bdafd0b6061af8184c4fef7ecb2d1109472cfe2269  0023-arm64-dts-qcom-sm8250-samsung-gts7xl-MAX77705-charge.patch
 "

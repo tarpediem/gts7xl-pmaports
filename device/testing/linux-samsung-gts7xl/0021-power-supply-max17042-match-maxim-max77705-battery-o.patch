@@ -1,0 +1,44 @@
+From e46430cdba1d9b8a0eeeb435519c4d059ca20c05 Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Tue, 17 Nov 2026 18:20:09 +0700
+Subject: [PATCH 21/23] power: supply: max17042: match maxim,max77705-battery
+ on i2c
+
+The compatible maxim,max77705-battery is in the of_match_table but has no
+i2c_device_id entry, so i2c_client_get_device_id() returns NULL for it,
+the ACPI lookup fails too and probe returns -ENODEV. Fall back to the OF
+match data before trying ACPI.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/power/supply/max17042_battery.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/drivers/power/supply/max17042_battery.c b/drivers/power/supply/max17042_battery.c
+index 505a68c26..93333b178 100644
+--- a/drivers/power/supply/max17042_battery.c
++++ b/drivers/power/supply/max17042_battery.c
+@@ -21,6 +21,7 @@
+ #include <linux/power_supply.h>
+ #include <linux/power/max17042_battery.h>
+ #include <linux/of.h>
++#include <linux/property.h>
+ #include <linux/regmap.h>
+ 
+ /* Status register bits */
+@@ -1570,6 +1571,12 @@ static int max17042_i2c_probe(struct i2c_client *client)
+ 
+ 	if (id) {
+ 		chip_type = id->driver_data;
++	} else if (is_of_node(dev_fwnode(dev)) && device_get_match_data(dev)) {
++		/*
++		 * Matched through of_match_table by a compatible that has no
++		 * i2c_device_id entry (maxim,max77705-battery).
++		 */
++		chip_type = (uintptr_t)device_get_match_data(dev);
+ 	} else {
+ 		acpi_id = acpi_match_device(dev->driver->acpi_match_table, dev);
+ 		if (!acpi_id)
+-- 
+2.56.0
+

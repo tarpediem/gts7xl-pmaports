@@ -1,0 +1,164 @@
+From 4339a19bea78a01fd86cd7da0a5797f9474dd7dc Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Tue, 17 Nov 2026 18:20:09 +0700
+Subject: [PATCH 23/23] arm64: dts: qcom: sm8250-samsung-gts7xl: MAX77705
+ charger and fuel gauge
+
+Add the MAX77705 (interrupt on PM8150L GPIO11), its charger and fuel gauge,
+the battery thermistor channel (PM8150L AMUX THM1, as the stock
+sec-battery reads it) and a simple-battery node.
+
+Charging stays below every stock setting, so that no cable type and no
+temperature band needs another one: float voltage 4.27 V (lowest entry of
+the stock battery,age_data), 450 mA charge current and 475 mA input limit
+(lowest charging and input currents of the stock cable-info), charging
+from 0 C to 41 C (stock: 0 C, recovery 2 C; swelling block 42 C, recovery
+40 C, lowered 1 C for the mainline NTC table), 10 h safety timer (stock
+USB charging total time). The PCA9468 direct charger is not described.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../boot/dts/qcom/sm8250-samsung-gts7xl.dts   | 98 ++++++++++++++++++-
+ 1 file changed, 96 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+index 8b9a4999d..2f12e2c3b 100644
+--- a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
++++ b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+@@ -3,7 +3,8 @@
+  * Samsung Galaxy Tab S7+ 5G (SM-T976B, gts7xl)
+  *
+  * Bring-up tree: memory map, pstore, boot framebuffer, display (MDSS, DSI0,
+- * S6TUUM3 panel), touchscreen, keys, UFS, USB 2.0 device mode, and the
++ * S6TUUM3 panel), touchscreen, keys, UFS, USB 2.0 device mode, MAX77705
++ * charger and fuel gauge (conservative limits, see the battery node), and the
+  * QCA6390 (Wi-Fi on PCIe0, Bluetooth on UART6). Every value comes from the device tree of the running stock
+  * kernel (T976BXXS7DXH1, board-id <8 6>) or from its kernel configuration.
+  */
+@@ -50,6 +51,32 @@ aliases {
+ 		serial0 = &uart6;
+ 	};
+ 
++	/*
++	 * Values from the stock tree (sec-battery "battery", cable-info and
++	 * max77705-fuelgauge nodes). Charging is kept below every stock
++	 * setting, so that no cable type and no temperature band needs a
++	 * different one:
++	 * - float voltage: the lowest entry of battery,age_data (4.27 V, the
++	 *   stock value from 1000 cycles on; new battery 4.38 V);
++	 * - charge current: the lowest charging_current of cable-info
++	 *   (450 mA); the input limit is on the charger node;
++	 * - charging only from 0 C (recovery 2 C, stock temp_low_threshold /
++	 *   _recovery) up to 41 C (recovery 39 C): the stock swelling block
++	 *   is 42 C (recovery 40 C), lowered by 1 C because the mainline
++	 *   100k NTC table reads this thermistor ~0.5 C low near 42 C.
++	 */
++	battery: battery {
++		compatible = "simple-battery";
++		device-chemistry = "lithium-ion";
++
++		charge-full-design-microamp-hours = <10090000>;
++		voltage-min-design-microvolt = <3200000>;
++		voltage-max-design-microvolt = <4380000>;
++		constant-charge-voltage-max-microvolt = <4270000>;
++		constant-charge-current-max-microamp = <450000>;
++		alert-celsius = <0 41>;
++	};
++
+ 	chosen {
+ 		#address-cells = <2>;
+ 		#size-cells = <2>;
+@@ -457,7 +484,9 @@ vreg_s8c_1p35: smps8 {
+ /*
+  * MAX77705 (charger, fuel gauge, USB-C and MUIC) sits on this bus. There is
+  * no MUIC driver yet: the initramfs switches the USB data lines to the SoC
+- * through /dev/i2c-N (MUIC at 0x25), so the bus only has to exist.
++ * through /dev/i2c-N (MUIC at 0x25, not claimed by any driver here).
++ * The PCA9468 direct charger (0x57) is left out on purpose: no driver, so
++ * the high-current path stays off.
+  */
+ /*
+  * QUPv3_0 GPI, for i2c5. The stock tree uses an EE offset of 0x1000 here
+@@ -472,6 +501,53 @@ &gpi_dma0 {
+ 
+ &i2c0 {
+ 	status = "okay";
++
++	max77705: pmic@66 {
++		compatible = "maxim,max77705";
++		reg = <0x66>;
++
++		/* PM8150L GPIO11, "chg_int" in the stock tree */
++		interrupts-extended = <&pm8150l_gpios 11 IRQ_TYPE_LEVEL_LOW>;
++		interrupt-controller;
++		#interrupt-cells = <1>;
++
++		pinctrl-0 = <&max77705_irq_default>;
++		pinctrl-names = "default";
++	};
++
++	/*
++	 * Safety monitor of the charger driver: battery thermistor on PM8150L
++	 * AMUX THM1 (stock "adc-temp", battery,thermal_source = ADC), checked
++	 * every 10 s, watchdog on; input limited to 475 mA (the lowest
++	 * input_current of cable-info, the USB SDP group); the stock safety
++	 * timer for USB charging (battery,usb_charging_total_time, 10 h).
++	 */
++	max77705_charger: charger@69 {
++		compatible = "maxim,max77705-charger";
++		reg = <0x69>;
++
++		interrupt-parent = <&max77705>;
++		interrupts = <0>;
++
++		monitored-battery = <&battery>;
++		io-channels = <&pm8150l_adc ADC5_AMUX_THM1_100K_PU>;
++		io-channel-names = "battery-temp";
++		input-current-limit-microamp = <475000>;
++		maxim,safety-timer-sec = <36000>;
++	};
++
++	/*
++	 * Read-only use: no interrupt, no model loading. Sense resistor 2 mOhm:
++	 * the vendor driver scales the current register by
++	 * 156.25 uA * fuelgauge,fg_resistor (5) = 1.5625 uV / 2 mOhm.
++	 */
++	fuel-gauge@36 {
++		compatible = "maxim,max77705-battery";
++		reg = <0x36>;
++
++		power-supplies = <&max77705_charger>;
++		shunt-resistor-micro-ohms = <2000>;
++	};
+ };
+ 
+ /*
+@@ -588,7 +664,25 @@ wifi@0 {
+ 	};
+ };
+ 
++&pm8150l_adc {
++	channel@4d {
++		reg = <ADC5_AMUX_THM1_100K_PU>;
++		qcom,ratiometric;
++		qcom,hw-settle-time = <200>;
++		label = "batt_therm";
++	};
++};
++
+ &pm8150l_gpios {
++	/* chg_int_default in the stock tree */
++	max77705_irq_default: max77705-irq-default-state {
++		pins = "gpio11";
++		function = "normal";
++		input-enable;
++		bias-pull-up;
++		power-source = <1>;
++	};
++
+ 	vol_up_n: vol-up-n-state {
+ 		pins = "gpio3";
+ 		function = "normal";
+-- 
+2.56.0
+
