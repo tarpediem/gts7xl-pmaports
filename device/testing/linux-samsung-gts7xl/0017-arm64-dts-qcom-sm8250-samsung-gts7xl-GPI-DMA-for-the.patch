@@ -1,0 +1,53 @@
+From 56ca2788001e8c52aa4f66368141e618f5b3bc7f Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Tue, 17 Nov 2026 11:49:13 +0700
+Subject: [PATCH 17/17] arm64: dts: qcom: sm8250-samsung-gts7xl: GPI DMA for
+ the touch bus
+
+r9 showed SE5 in GSI mode (geni-i2c: Failed to get tx DMA ch), so i2c5
+needs GPI. Enable gpi_dma0 with the stock EE offset 0x1000 and give
+i2c5 back its dmas. i2c0 is unchanged.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../boot/dts/qcom/sm8250-samsung-gts7xl.dts      | 16 ++++++++++++----
+ 1 file changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+index acca73ef7..0fbbafc0f 100644
+--- a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
++++ b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+@@ -334,18 +334,26 @@ vreg_l17a_3p0: ldo17 {
+  * no MUIC driver yet: the initramfs switches the USB data lines to the SoC
+  * through /dev/i2c-N (MUIC at 0x25), so the bus only has to exist.
+  */
++/*
++ * QUPv3_0 GPI, for i2c5. The stock tree uses an EE offset of 0x1000 here
++ * (qcom,gpi-ee-offset in the live DT); with the sm8250 default of 0 every
++ * GPI command times out on this board.
++ */
++&gpi_dma0 {
++	qcom,gpi-ee-offset = <0x1000>;
++
++	status = "okay";
++};
++
+ &i2c0 {
+ 	status = "okay";
+ };
+ 
+ /*
+  * Touchscreen bus: QUP SE5, 400 kHz as the stock geni driver's default.
+- * FIFO/SE-DMA mode only: no GPI (gpi_dma0 stays disabled).
++ * The firmware runs SE5 in GSI mode (FIFO disabled), so it needs GPI DMA.
+  */
+ &i2c5 {
+-	/delete-property/ dmas;
+-	/delete-property/ dma-names;
+-
+ 	clock-frequency = <400000>;
+ 
+ 	status = "okay";
+-- 
+2.56.0
+

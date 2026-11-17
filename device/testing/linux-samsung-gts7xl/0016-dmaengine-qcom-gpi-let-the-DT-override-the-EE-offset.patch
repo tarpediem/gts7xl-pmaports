@@ -1,0 +1,36 @@
+From dfa9325cccaff0c0bd6075e6dc79c1a15067cb7b Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Tue, 17 Nov 2026 11:49:13 +0700
+Subject: [PATCH 16/17] dmaengine: qcom: gpi: let the DT override the EE offset
+
+Read the optional qcom,gpi-ee-offset property after the match data.
+On the Galaxy Tab S7+ the sm8250 default of 0 makes every GPI command
+time out (EV ALLOCATE completion timeout); the stock kernel uses
+0x1000 for the QUPv3_0 GPI.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/dma/qcom/gpi.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/drivers/dma/qcom/gpi.c b/drivers/dma/qcom/gpi.c
+index a5055a627..1202ec908 100644
+--- a/drivers/dma/qcom/gpi.c
++++ b/drivers/dma/qcom/gpi.c
+@@ -2190,6 +2190,13 @@ static int gpi_probe(struct platform_device *pdev)
+ 	}
+ 
+ 	ee_offset = (uintptr_t)device_get_match_data(gpi_dev->dev);
++	/*
++	 * The EE offset depends on how the firmware partitions the GSI between
++	 * execution environments; some boards differ from the SoC default (and
++	 * from one QUP wrapper to the next). Let the DT override it.
++	 */
++	of_property_read_u32(gpi_dev->dev->of_node, "qcom,gpi-ee-offset",
++			     &ee_offset);
+ 	gpi_dev->ee_base = gpi_dev->ee_base - ee_offset;
+ 
+ 	gpi_dev->ev_factor = EV_FACTOR;
+-- 
+2.56.0
+

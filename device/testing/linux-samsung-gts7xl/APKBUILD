@@ -2,7 +2,7 @@
 # Kernel config based on: linux-postmarketos-qcom-sm8250 (refreshed with olddefconfig)
 pkgname=linux-samsung-gts7xl
 pkgver=7.3.4
-pkgrel=9
+pkgrel=10
 pkgdesc="Mainline kernel for Samsung Galaxy Tab S7+ 5G (gts7xl)"
 arch="aarch64"
 _carch="arm64"
@@ -42,6 +42,9 @@ source="https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-$pkgver.tar.xz
 	0012-Input-stmfts1b-probe-asynchronously-bound-the-polls.patch
 	0013-arm64-dts-qcom-sm8250-samsung-gts7xl-touch-bus-witho.patch
 	0014-arm64-dts-qcom-sm8250-samsung-gts7xl-L13A-on-the-PLD.patch
+	0015-dt-bindings-dma-qcom-gpi-add-qcom-gpi-ee-offset.patch
+	0016-dmaengine-qcom-gpi-let-the-DT-override-the-EE-offset.patch
+	0017-arm64-dts-qcom-sm8250-samsung-gts7xl-GPI-DMA-for-the.patch
 	"
 builddir="$srcdir/linux-$pkgver"
 
@@ -83,7 +86,7 @@ package() {
 }
 sha512sums="
 db5508c3cf8b613b4680022eb785c036bcf8a5c952f8d0b2f3c2c7dc16779cf8bd954e0bca0b0b52451bac61430a687ae73205574f002f3b60de886640ebb9b0  linux-7.3.4.tar.xz
-fb8afb8a4ab9f976d05202aa4022c73f9d6591c03b62b660cb19742d71cb99d7d55aa9f528ad4ba519019992667e0a2dff0013a1c1f72b0724eb164f39fb670b  config-samsung-gts7xl.aarch64
+03b2046a3451d205329917670c938413b7fd53c3e0d27961319f20cec2ced0525f6bf510db7b1adc8e203c6a521f2cdf9890d8698256e9abff4eb65f66fbabb7  config-samsung-gts7xl.aarch64
 7a204395b5be27b4af1828cd46ab6753288b0157bb01cdc46a6d3953ba23ea0b5300ab1bec7fac5730abb989dcd1eb6f53c411631cdbde136eafe81a4492ace0  0001-arm64-dts-qcom-sm8250-add-Samsung-Galaxy-Tab-S7-5G-s.patch
 e9e85e11505b5c2d0a3433d40c98005cf1aa6bb95569ade6dbef41f6537faf0724c79f1acc1d53c2281290fcba6573d7283ad745c59e8921c2221b63cca0dddf  0002-arm64-dts-qcom-sm8250-samsung-gts7xl-memory-map-psto.patch
 cd923fabbb4fec9421cae5a7fd9b9c4e1f09099f42e622e5be437f30c422fa932f5091b84ce8bf665e1fa297f40b28b542fdf9ffbac47b103ffc9fb67456c682  0003-Input-pm8941-pwrkey-select-the-warm-PS_HOLD-reset-at.patch
@@ -98,4 +101,7 @@ cd923fabbb4fec9421cae5a7fd9b9c4e1f09099f42e622e5be437f30c422fa932f5091b84ce8bf66
 139966478c61c4eef882e0412f175091d96ba7b2c4479a3ba28db585e3b78a112db4125e708a3f759d65c2752468295d9e3fd1133bc0953f31af149b3d41ce3b  0012-Input-stmfts1b-probe-asynchronously-bound-the-polls.patch
 1249c1d5bbdfc83001b9405ac7994571be8066796eecf48ca3e85d90850b476be5f3ba8ca5053be361f368f329370e8c3fa18517460942d93ae726c39f571149  0013-arm64-dts-qcom-sm8250-samsung-gts7xl-touch-bus-witho.patch
 6aa5d889c10784d5cdf2d6e3fc8a7e276c0e8d7b7a9fdf14af6579add721ad3c937211a7dcc69f17d04e61797c202a5ef1b625331e7c8351cb4aaf414401ad11  0014-arm64-dts-qcom-sm8250-samsung-gts7xl-L13A-on-the-PLD.patch
+f77d3288f0d714558be0d2a9f2387376b9605b6d3c1e2fd6f92bf6b58870925bfdb8ad8ec27915d73357ec50a1acba42b2f578d178eaa5ceb2056ac013275ea8  0015-dt-bindings-dma-qcom-gpi-add-qcom-gpi-ee-offset.patch
+584791237e503e8b1784aa8da2deac0b88822e1eb124ba614df4d319ff2b966d654464ce544bb4b7753fd6429f1b11114ae384b13843612c0564654d7e6f6689  0016-dmaengine-qcom-gpi-let-the-DT-override-the-EE-offset.patch
+c75a6c8f1b90cecb1f728dd3e4b8030d3842d768652f59df0d314c5938fea9339e93f03962c9dfd0b18cd46011578349d19c61c1f9449b7d6903e29ec230533c  0017-arm64-dts-qcom-sm8250-samsung-gts7xl-GPI-DMA-for-the.patch
 "
