@@ -1,3 +1,10 @@
 /usr/sbin/i2ctransfer
 /usr/sbin/kexec
+/usr/sbin/iw
+/usr/bin/btmgmt
+/lib/firmware/ath11k/QCA6390/hw2.0/amss.bin.zst
+/lib/firmware/ath11k/QCA6390/hw2.0/m3.bin.zst
+/lib/firmware/ath11k/QCA6390/hw2.0/board-2.bin.zst
+/lib/firmware/qca/htbtfw20.tlv.zst
+/lib/firmware/qca/htnv20.bin.zst
 /usr/share/gts7xl/initramfs-modprobe.conf:/etc/modprobe.d/gts7xl-initramfs.conf

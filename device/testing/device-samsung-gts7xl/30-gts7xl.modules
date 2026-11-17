@@ -1,1 +1,6 @@
 stmfts1b
+pwrseq-qcom-wcn
+pci-pwrctrl-pwrseq
+ath11k_pci
+qrtr-mhi
+hci_uart
