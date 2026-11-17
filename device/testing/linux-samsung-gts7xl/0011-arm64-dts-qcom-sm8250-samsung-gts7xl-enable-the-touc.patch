@@ -1,0 +1,121 @@
+From ef2cb3211d39fbd3ddc9591561f933f314399486 Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Tue, 17 Nov 2026 11:13:53 +0700
+Subject: [PATCH 11/11] arm64: dts: qcom: sm8250-samsung-gts7xl: enable the
+ touchscreen
+
+FTS1BA90A at 0x49 on QUP SE5 (400 kHz), interrupt on GPIO 15, AVDD on
+L13A (3.3 V) and VDD on L14A (1.8 V) as in the stock tree. The
+controller reports in portrait (1752x2800); swap and invert X to match
+the landscape panel. Enable GPI DMA 0 in case SE5 runs in GSI mode.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../boot/dts/qcom/sm8250-samsung-gts7xl.dts   | 66 ++++++++++++++++++-
+ 1 file changed, 65 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+index 3ef13f791..ee9618f0a 100644
+--- a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
++++ b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+@@ -3,7 +3,7 @@
+  * Samsung Galaxy Tab S7+ 5G (SM-T976B, gts7xl)
+  *
+  * Bring-up tree: memory map, pstore, boot framebuffer, display (MDSS, DSI0,
+- * S6TUUM3 panel), keys, UFS and USB 2.0 device mode. Every value comes from the device tree of the running stock
++ * S6TUUM3 panel), touchscreen, keys, UFS and USB 2.0 device mode. Every value comes from the device tree of the running stock
+  * kernel (T976BXXS7DXH1, board-id <8 6>) or from its kernel configuration.
+  */
+ /dts-v1/;
+@@ -293,6 +293,26 @@ vreg_l12a_1p8: ldo12 {
+ 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+ 		};
+ 
++		/* touchscreen AVDD ("pm8150_l13" in the stock touch node) */
++		vreg_l13a_3p3: ldo13 {
++			regulator-name = "vreg_l13a_3p3";
++			regulator-min-microvolt = <3300000>;
++			regulator-max-microvolt = <3300000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++		};
++
++		/*
++		 * Touchscreen DVDD ("pm8150_l14"). Also vddio of the stock
++		 * display node, boot-on there: the touch driver never turns it
++		 * off.
++		 */
++		vreg_l14a_1p8: ldo14 {
++			regulator-name = "vreg_l14a_1p8";
++			regulator-min-microvolt = <1800000>;
++			regulator-max-microvolt = <1800000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++		};
++
+ 		vreg_l17a_3p0: ldo17 {
+ 			regulator-name = "vreg_l17a_3p0";
+ 			regulator-min-microvolt = <2496000>;
+@@ -307,10 +327,46 @@ vreg_l17a_3p0: ldo17 {
+  * no MUIC driver yet: the initramfs switches the USB data lines to the SoC
+  * through /dev/i2c-N (MUIC at 0x25), so the bus only has to exist.
+  */
++&gpi_dma0 {
++	status = "okay";
++};
++
+ &i2c0 {
+ 	status = "okay";
+ };
+ 
++/* Touchscreen bus: QUP SE5, 400 kHz as the stock geni driver's default */
++&i2c5 {
++	clock-frequency = <400000>;
++
++	status = "okay";
++
++	touchscreen@49 {
++		compatible = "st,fts1ba90a";
++		reg = <0x49>;
++
++		interrupt-parent = <&tlmm>;
++		interrupts = <15 IRQ_TYPE_LEVEL_LOW>;
++
++		avdd-supply = <&vreg_l13a_3p3>;
++		vdd-supply = <&vreg_l14a_1p8>;
++
++		/*
++		 * The controller reports in the panel's portrait frame
++		 * (stm,max_coords = <1751 2799>); the panel scans out
++		 * landscape 2800x1752. Same mapping as the libinput matrix
++		 * "0 1 0 -1 0 1" used on this tablet under Droidian.
++		 */
++		touchscreen-size-x = <1752>;
++		touchscreen-size-y = <2800>;
++		touchscreen-inverted-x;
++		touchscreen-swapped-x-y;
++
++		pinctrl-names = "default";
++		pinctrl-0 = <&touch_irq_default>;
++	};
++};
++
+ &mdss {
+ 	status = "okay";
+ };
+@@ -421,6 +477,14 @@ panel_te_active: panel-te-active-state {
+ 		bias-pull-down;
+ 	};
+ 
++	/* attn_irq in the stock tree */
++	touch_irq_default: touch-irq-default-state {
++		pins = "gpio15";
++		function = "gpio";
++		drive-strength = <2>;
++		bias-disable;
++	};
++
+ 	panel_vdd_en: panel-vdd-en-state {
+ 		pins = "gpio135";
+ 		function = "gpio";
+-- 
+2.56.0
+

@@ -1,0 +1,633 @@
+From b739d846f59dc8fa3c3277526af4461239d38fd3 Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Tue, 17 Nov 2026 11:13:52 +0700
+Subject: [PATCH 10/11] Input: add ST FTS1BA90A touchscreen driver
+
+Minimal driver for the fts1b FingerTip controller, protocol from the
+Samsung vendor driver: power on (avdd, 1 ms, vdd, 5 ms), system reset,
+wait for the ready event, chip ID / firmware / panel info reads, touch
+type selection, event FIFO clear and scan on/off around input open and
+close and system sleep. 16-byte events are read with 0x60/0x61.
+
+The firmware in the IC is used as is: no flash, configuration or
+calibration write is ever sent. The supplies are never switched off
+(the 1.8 V rail is shared with the display on the Tab S7+).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/input/touchscreen/Kconfig    |  11 +
+ drivers/input/touchscreen/Makefile   |   1 +
+ drivers/input/touchscreen/stmfts1b.c | 567 +++++++++++++++++++++++++++
+ 3 files changed, 579 insertions(+)
+ create mode 100644 drivers/input/touchscreen/stmfts1b.c
+
+diff --git a/drivers/input/touchscreen/Kconfig b/drivers/input/touchscreen/Kconfig
+index 9b9ae8ac3..fe8afcef5 100644
+--- a/drivers/input/touchscreen/Kconfig
++++ b/drivers/input/touchscreen/Kconfig
+@@ -1251,6 +1251,17 @@ config TOUCHSCREEN_STMFTS
+ 	  To compile this driver as a module, choose M here: the
+ 	  module will be called stmfts.
+ 
++config TOUCHSCREEN_STMFTS1B
++	tristate "STMicroelectronics FTS1BA90A touchscreen"
++	depends on I2C
++	help
++	  Say Y here if you want support for the STMicroelectronics
++	  FTS1BA90A touchscreen controller, as found in the Samsung
++	  Galaxy Tab S7+.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called stmfts1b.
++
+ config TOUCHSCREEN_STMPE
+ 	tristate "STMicroelectronics STMPE touchscreens"
+ 	depends on MFD_STMPE
+diff --git a/drivers/input/touchscreen/Makefile b/drivers/input/touchscreen/Makefile
+index bfd9de833..88630a246 100644
+--- a/drivers/input/touchscreen/Makefile
++++ b/drivers/input/touchscreen/Makefile
+@@ -82,6 +82,7 @@ obj-$(CONFIG_TOUCHSCREEN_SILEAD)	+= silead.o
+ obj-$(CONFIG_TOUCHSCREEN_SIS_I2C)	+= sis_i2c.o
+ obj-$(CONFIG_TOUCHSCREEN_ST1232)	+= st1232.o
+ obj-$(CONFIG_TOUCHSCREEN_STMFTS)	+= stmfts.o
++obj-$(CONFIG_TOUCHSCREEN_STMFTS1B)	+= stmfts1b.o
+ obj-$(CONFIG_TOUCHSCREEN_STMPE)		+= stmpe-ts.o
+ obj-$(CONFIG_TOUCHSCREEN_SUN4I)		+= sun4i-ts.o
+ obj-$(CONFIG_TOUCHSCREEN_SUR40)		+= sur40.o
+diff --git a/drivers/input/touchscreen/stmfts1b.c b/drivers/input/touchscreen/stmfts1b.c
+new file mode 100644
+index 000000000..b36327165
+--- /dev/null
++++ b/drivers/input/touchscreen/stmfts1b.c
+@@ -0,0 +1,567 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * STMicroelectronics FTS1BA90A touchscreen controller
++ *
++ * Minimal driver for the "fts1b" generation (chip ID 0x39 0x36) found in the
++ * Samsung Galaxy Tab S7+ (SM-T976B). The command set and the 16-byte event
++ * format differ from the FTS parts handled by stmfts.c.
++ *
++ * The protocol is taken from the Samsung vendor driver
++ * (drivers/input/touchscreen/stm/fts1ba90a/ in the SM8250 kernel). Only
++ * runtime commands are used: system reset, identification reads, event
++ * reads, touch type selection, event FIFO clear and scan on/off. Nothing
++ * here writes the controller flash, its configuration or its calibration;
++ * the firmware already in the IC is used as is.
++ */
++
++#include <linux/delay.h>
++#include <linux/i2c.h>
++#include <linux/input.h>
++#include <linux/input/mt.h>
++#include <linux/input/touchscreen.h>
++#include <linux/interrupt.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/regulator/consumer.h>
++
++#define FTS1B_CMD_READ_DEVICE_ID	0x22
++#define FTS1B_CMD_READ_PANEL_INFO	0x23
++#define FTS1B_CMD_READ_FW_VERSION	0x24
++#define FTS1B_CMD_SET_TOUCH_FUNCTION	0x30
++#define FTS1B_CMD_READ_ONE_EVENT	0x60
++#define FTS1B_CMD_READ_ALL_EVENT	0x61
++#define FTS1B_CMD_CLEAR_ALL_EVENT	0x62
++#define FTS1B_CMD_SET_SCAN_MODE		0xa0
++
++#define FTS1B_ID0			0x39
++#define FTS1B_ID1			0x36
++
++#define FTS1B_EVENT_SIZE		16
++#define FTS1B_FIFO_MAX			32
++#define FTS1B_MAX_FINGERS		10
++
++/* byte 0 of an event */
++#define FTS1B_EID(b)			((b) & 0x03)
++#define FTS1B_EID_COORDINATE		0
++#define FTS1B_EID_STATUS		1
++#define FTS1B_TID(b)			(((b) >> 2) & 0x0f)
++#define FTS1B_STYPE(b)			(((b) >> 2) & 0x0f)
++#define FTS1B_ACTION(b)			(((b) >> 6) & 0x03)
++
++#define FTS1B_ACTION_PRESS		1
++#define FTS1B_ACTION_MOVE		2
++#define FTS1B_ACTION_RELEASE		3
++
++#define FTS1B_TTYPE_NORMAL		0
++#define FTS1B_TTYPE_GLOVE		3
++#define FTS1B_TTYPE_PALM		5
++#define FTS1B_TTYPE_WET			6
++
++#define FTS1B_STYPE_ERROR		1
++#define FTS1B_STYPE_INFORMATION		2
++#define FTS1B_ERR_QUEUE_FULL		0x01
++#define FTS1B_ERR_ESD			0x02
++#define FTS1B_INFO_READY		0x00
++
++#define FTS1B_EVENT_ECHO		0x43	/* byte 0, byte 1 = 0x01 */
++#define FTS1B_EVENT_ERROR_REPORT	0xf3
++
++/* touch, palm and wet reporting: FTS_TOUCHTYPE_DEFAULT_ENABLE */
++#define FTS1B_TOUCH_FUNCTIONS		0x0061
++
++#define FTS1B_SCAN_OFF			0x00
++#define FTS1B_SCAN_MS_SS		0x01
++
++struct stmfts1b {
++	struct i2c_client *client;
++	struct input_dev *input;
++	struct touchscreen_properties prop;
++	struct regulator *avdd;
++	struct regulator *vdd;
++	u8 events[FTS1B_FIFO_MAX * FTS1B_EVENT_SIZE];
++};
++
++static int stmfts1b_read(struct stmfts1b *ts, const u8 *cmd, u16 cmd_len,
++			 u8 *buf, u16 len)
++{
++	struct i2c_msg msgs[2] = {
++		{
++			.addr = ts->client->addr,
++			.len = cmd_len,
++			.buf = (u8 *)cmd,
++		},
++		{
++			.addr = ts->client->addr,
++			.flags = I2C_M_RD,
++			.len = len,
++			.buf = buf,
++		},
++	};
++	int ret;
++
++	ret = i2c_transfer(ts->client->adapter, msgs, ARRAY_SIZE(msgs));
++	if (ret < 0)
++		return ret;
++
++	return ret == ARRAY_SIZE(msgs) ? 0 : -EIO;
++}
++
++static int stmfts1b_write(struct stmfts1b *ts, const u8 *cmd, u16 len)
++{
++	int ret;
++
++	ret = i2c_master_send(ts->client, cmd, len);
++	if (ret < 0)
++		return ret;
++
++	return ret == len ? 0 : -EIO;
++}
++
++static int stmfts1b_read_event(struct stmfts1b *ts, u8 *ev)
++{
++	static const u8 cmd = FTS1B_CMD_READ_ONE_EVENT;
++
++	return stmfts1b_read(ts, &cmd, 1, ev, FTS1B_EVENT_SIZE);
++}
++
++/*
++ * Poll the event FIFO for the "controller ready" status event after a reset.
++ * Vendor fts_wait_for_ready(): 20 ms between reads, about 150 reads.
++ */
++static int stmfts1b_wait_ready(struct stmfts1b *ts)
++{
++	struct device *dev = &ts->client->dev;
++	u8 ev[FTS1B_EVENT_SIZE];
++	int i, ret;
++
++	for (i = 0; i < 150; i++) {
++		ret = stmfts1b_read_event(ts, ev);
++		if (ret)
++			return ret;
++
++		if (FTS1B_STYPE(ev[0]) == FTS1B_STYPE_INFORMATION &&
++		    ev[1] == FTS1B_INFO_READY)
++			return 0;
++
++		if (ev[0] == FTS1B_EVENT_ERROR_REPORT)
++			dev_warn(dev, "error event %*ph\n", 8, ev);
++
++		msleep(20);
++	}
++
++	dev_err(dev, "controller not ready, last event %*ph\n", 8, ev);
++	return -ETIMEDOUT;
++}
++
++/*
++ * Send a command and wait for its echo (status report 0x43 0x01 followed by
++ * the first command bytes). Vendor fts_fw_wait_for_echo_event().
++ */
++static int stmfts1b_command_echo(struct stmfts1b *ts, const u8 *cmd, u16 len)
++{
++	struct device *dev = &ts->client->dev;
++	u16 cmp = min_t(u16, len, 4);
++	u8 ev[FTS1B_EVENT_SIZE];
++	int i, ret;
++
++	ret = stmfts1b_write(ts, cmd, len);
++	if (ret)
++		return ret;
++
++	for (i = 0; i < 100; i++) {
++		ret = stmfts1b_read_event(ts, ev);
++		if (ret)
++			return ret;
++
++		if (ev[0] == FTS1B_EVENT_ECHO && ev[1] == 0x01 &&
++		    !memcmp(&ev[2], cmd, cmp))
++			return 0;
++
++		if (ev[0] == FTS1B_EVENT_ERROR_REPORT)
++			dev_warn(dev, "error event %*ph after command %02x\n",
++				 8, ev, cmd[0]);
++
++		msleep(20);
++	}
++
++	dev_err(dev, "no echo for command %*ph\n", len, cmd);
++	return -ETIMEDOUT;
++}
++
++static int stmfts1b_set_scan(struct stmfts1b *ts, u8 mode)
++{
++	const u8 cmd[] = { FTS1B_CMD_SET_SCAN_MODE, 0x00, mode };
++
++	return stmfts1b_command_echo(ts, cmd, sizeof(cmd));
++}
++
++static void stmfts1b_release_all(struct stmfts1b *ts)
++{
++	int i;
++
++	for (i = 0; i < FTS1B_MAX_FINGERS; i++) {
++		input_mt_slot(ts->input, i);
++		input_mt_report_slot_inactive(ts->input);
++	}
++	input_mt_sync_frame(ts->input);
++	input_sync(ts->input);
++}
++
++static void stmfts1b_report_coordinate(struct stmfts1b *ts, const u8 *ev)
++{
++	unsigned int tid = FTS1B_TID(ev[0]);
++	unsigned int action = FTS1B_ACTION(ev[0]);
++	unsigned int ttype = (((ev[6] >> 6) & 0x03) << 2) | ((ev[7] >> 6) & 0x03);
++	unsigned int x = (ev[1] << 4) | (ev[3] >> 4);
++	unsigned int y = (ev[2] << 4) | (ev[3] & 0x0f);
++
++	if (tid >= FTS1B_MAX_FINGERS)
++		return;
++
++	switch (ttype) {
++	case FTS1B_TTYPE_NORMAL:
++	case FTS1B_TTYPE_GLOVE:
++	case FTS1B_TTYPE_PALM:
++	case FTS1B_TTYPE_WET:
++		break;
++	default:
++		return;
++	}
++
++	input_mt_slot(ts->input, tid);
++
++	switch (action) {
++	case FTS1B_ACTION_PRESS:
++	case FTS1B_ACTION_MOVE:
++		input_mt_report_slot_state(ts->input, MT_TOOL_FINGER, true);
++		touchscreen_report_pos(ts->input, &ts->prop, x, y, true);
++		input_report_abs(ts->input, ABS_MT_TOUCH_MAJOR, ev[4]);
++		input_report_abs(ts->input, ABS_MT_TOUCH_MINOR, ev[5]);
++		break;
++	case FTS1B_ACTION_RELEASE:
++		input_mt_report_slot_inactive(ts->input);
++		break;
++	default:
++		break;
++	}
++}
++
++static void stmfts1b_report_status(struct stmfts1b *ts, const u8 *ev)
++{
++	struct device *dev = &ts->client->dev;
++
++	if (FTS1B_STYPE(ev[0]) != FTS1B_STYPE_ERROR)
++		return;
++
++	switch (ev[1]) {
++	case FTS1B_ERR_QUEUE_FULL:
++		dev_warn_ratelimited(dev, "event queue full\n");
++		break;
++	case FTS1B_ERR_ESD:
++		dev_warn_ratelimited(dev, "ESD reported by the controller\n");
++		break;
++	default:
++		dev_dbg(dev, "error status %*ph\n", 8, ev);
++		break;
++	}
++}
++
++static irqreturn_t stmfts1b_irq(int irq, void *dev_id)
++{
++	struct stmfts1b *ts = dev_id;
++	static const u8 cmd_all = FTS1B_CMD_READ_ALL_EVENT;
++	unsigned int left, i;
++	int ret;
++
++	ret = stmfts1b_read_event(ts, ts->events);
++	if (ret) {
++		dev_err_ratelimited(&ts->client->dev, "event read failed: %d\n", ret);
++		return IRQ_HANDLED;
++	}
++
++	left = ts->events[7] & 0x3f;
++	if (left >= FTS1B_FIFO_MAX)
++		left = FTS1B_FIFO_MAX - 1;
++
++	if (left) {
++		ret = stmfts1b_read(ts, &cmd_all, 1,
++				    &ts->events[FTS1B_EVENT_SIZE],
++				    left * FTS1B_EVENT_SIZE);
++		if (ret) {
++			dev_err_ratelimited(&ts->client->dev,
++					    "event read failed: %d\n", ret);
++			left = 0;
++		}
++	}
++
++	for (i = 0; i <= left; i++) {
++		const u8 *ev = &ts->events[i * FTS1B_EVENT_SIZE];
++
++		switch (FTS1B_EID(ev[0])) {
++		case FTS1B_EID_COORDINATE:
++			stmfts1b_report_coordinate(ts, ev);
++			break;
++		case FTS1B_EID_STATUS:
++			if (FTS1B_STYPE(ev[0]) == FTS1B_STYPE_ERROR &&
++			    ev[1] == FTS1B_ERR_QUEUE_FULL) {
++				stmfts1b_report_status(ts, ev);
++				stmfts1b_release_all(ts);
++				return IRQ_HANDLED;
++			}
++			stmfts1b_report_status(ts, ev);
++			break;
++		default:
++			break;
++		}
++	}
++
++	input_mt_sync_frame(ts->input);
++	input_sync(ts->input);
++
++	return IRQ_HANDLED;
++}
++
++static int stmfts1b_start(struct stmfts1b *ts)
++{
++	static const u8 clear[] = { FTS1B_CMD_CLEAR_ALL_EVENT };
++	int ret;
++
++	ret = stmfts1b_command_echo(ts, clear, sizeof(clear));
++	if (ret)
++		return ret;
++
++	ret = stmfts1b_set_scan(ts, FTS1B_SCAN_MS_SS);
++	if (ret)
++		return ret;
++
++	enable_irq(ts->client->irq);
++	return 0;
++}
++
++static void stmfts1b_stop(struct stmfts1b *ts)
++{
++	int ret;
++
++	disable_irq(ts->client->irq);
++
++	ret = stmfts1b_set_scan(ts, FTS1B_SCAN_OFF);
++	if (ret)
++		dev_warn(&ts->client->dev, "scan off failed: %d\n", ret);
++
++	stmfts1b_release_all(ts);
++}
++
++static int stmfts1b_input_open(struct input_dev *dev)
++{
++	struct stmfts1b *ts = input_get_drvdata(dev);
++
++	return stmfts1b_start(ts);
++}
++
++static void stmfts1b_input_close(struct input_dev *dev)
++{
++	struct stmfts1b *ts = input_get_drvdata(dev);
++
++	stmfts1b_stop(ts);
++}
++
++/*
++ * Vendor fts_power_ctrl(): avdd, 1 ms, vdd, 5 ms. The supplies are never
++ * switched off again: vdd (PM8150 L14A) is also listed as vddio of the
++ * display in the stock tree and is left on by the bootloader.
++ */
++static int stmfts1b_power_on(struct stmfts1b *ts)
++{
++	int ret;
++
++	ret = regulator_enable(ts->avdd);
++	if (ret)
++		return ret;
++
++	usleep_range(1000, 1100);
++
++	ret = regulator_enable(ts->vdd);
++	if (ret)
++		return ret;
++
++	usleep_range(5000, 5500);
++	return 0;
++}
++
++static int stmfts1b_init(struct stmfts1b *ts)
++{
++	struct device *dev = &ts->client->dev;
++	/* system reset: write 0x81 to hardware register 0x20000024 */
++	static const u8 sysreset[] = { 0xfa, 0x20, 0x00, 0x00, 0x24, 0x81 };
++	static const u8 cmd_id = FTS1B_CMD_READ_DEVICE_ID;
++	static const u8 cmd_ver = FTS1B_CMD_READ_FW_VERSION;
++	static const u8 cmd_panel = FTS1B_CMD_READ_PANEL_INFO;
++	static const u8 functions[] = {
++		FTS1B_CMD_SET_TOUCH_FUNCTION,
++		FTS1B_TOUCH_FUNCTIONS & 0xff,
++		FTS1B_TOUCH_FUNCTIONS >> 8,
++	};
++	u8 buf[11];
++	int ret;
++
++	ret = stmfts1b_write(ts, sysreset, sizeof(sysreset));
++	if (ret)
++		return dev_err_probe(dev, ret, "system reset failed\n");
++
++	usleep_range(10000, 11000);
++
++	ret = stmfts1b_wait_ready(ts);
++	if (ret)
++		return ret;
++
++	ret = stmfts1b_read(ts, &cmd_id, 1, buf, 5);
++	if (ret)
++		return ret;
++
++	if (buf[2] != FTS1B_ID0 || buf[3] != FTS1B_ID1)
++		return dev_err_probe(dev, -ENODEV, "unexpected chip id %*ph\n",
++				     5, buf);
++
++	ret = stmfts1b_read(ts, &cmd_ver, 1, buf, 9);
++	if (ret)
++		return ret;
++
++	dev_info(dev, "fw 0x%04x config 0x%04x main 0x%04x project 0x%02x module 0x%02x\n",
++		 (buf[0] << 8) | buf[1], (buf[2] << 8) | buf[3],
++		 buf[4] | (buf[5] << 8), buf[6], buf[8]);
++
++	ret = stmfts1b_read(ts, &cmd_panel, 1, buf, 11);
++	if (ret)
++		return ret;
++
++	dev_info(dev, "resolution %ux%u, %u force x %u sense channels\n",
++		 (buf[0] << 8) | buf[1], (buf[2] << 8) | buf[3], buf[8], buf[9]);
++
++	ret = stmfts1b_write(ts, functions, sizeof(functions));
++	if (ret)
++		return ret;
++
++	usleep_range(10000, 11000);
++
++	/* scanning starts when the input device is opened */
++	return stmfts1b_set_scan(ts, FTS1B_SCAN_OFF);
++}
++
++static int stmfts1b_probe(struct i2c_client *client)
++{
++	struct device *dev = &client->dev;
++	struct stmfts1b *ts;
++	int ret;
++
++	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C))
++		return -ENODEV;
++
++	ts = devm_kzalloc(dev, sizeof(*ts), GFP_KERNEL);
++	if (!ts)
++		return -ENOMEM;
++
++	ts->client = client;
++	i2c_set_clientdata(client, ts);
++
++	ts->avdd = devm_regulator_get(dev, "avdd");
++	if (IS_ERR(ts->avdd))
++		return dev_err_probe(dev, PTR_ERR(ts->avdd), "avdd supply\n");
++
++	ts->vdd = devm_regulator_get(dev, "vdd");
++	if (IS_ERR(ts->vdd))
++		return dev_err_probe(dev, PTR_ERR(ts->vdd), "vdd supply\n");
++
++	ts->input = devm_input_allocate_device(dev);
++	if (!ts->input)
++		return -ENOMEM;
++
++	ts->input->name = "STM FTS1BA90A Touchscreen";
++	ts->input->id.bustype = BUS_I2C;
++	ts->input->open = stmfts1b_input_open;
++	ts->input->close = stmfts1b_input_close;
++
++	input_set_capability(ts->input, EV_ABS, ABS_MT_POSITION_X);
++	input_set_capability(ts->input, EV_ABS, ABS_MT_POSITION_Y);
++	input_set_abs_params(ts->input, ABS_MT_TOUCH_MAJOR, 0, 255, 0, 0);
++	input_set_abs_params(ts->input, ABS_MT_TOUCH_MINOR, 0, 255, 0, 0);
++	touchscreen_parse_properties(ts->input, true, &ts->prop);
++
++	if (!input_abs_get_max(ts->input, ABS_MT_POSITION_X) ||
++	    !input_abs_get_max(ts->input, ABS_MT_POSITION_Y))
++		return dev_err_probe(dev, -EINVAL, "touchscreen-size-x/y missing\n");
++
++	ret = input_mt_init_slots(ts->input, FTS1B_MAX_FINGERS,
++				  INPUT_MT_DIRECT);
++	if (ret)
++		return ret;
++
++	input_set_drvdata(ts->input, ts);
++
++	ret = devm_request_threaded_irq(dev, client->irq, NULL, stmfts1b_irq,
++					IRQF_ONESHOT | IRQF_NO_AUTOEN,
++					"stmfts1b", ts);
++	if (ret)
++		return ret;
++
++	ret = stmfts1b_power_on(ts);
++	if (ret)
++		return dev_err_probe(dev, ret, "power on failed\n");
++
++	ret = stmfts1b_init(ts);
++	if (ret)
++		return ret;
++
++	return input_register_device(ts->input);
++}
++
++static int stmfts1b_suspend(struct device *dev)
++{
++	struct stmfts1b *ts = i2c_get_clientdata(to_i2c_client(dev));
++
++	guard(mutex)(&ts->input->mutex);
++	if (input_device_enabled(ts->input))
++		stmfts1b_stop(ts);
++
++	return 0;
++}
++
++static int stmfts1b_resume(struct device *dev)
++{
++	struct stmfts1b *ts = i2c_get_clientdata(to_i2c_client(dev));
++
++	guard(mutex)(&ts->input->mutex);
++	if (input_device_enabled(ts->input))
++		return stmfts1b_start(ts);
++
++	return 0;
++}
++
++static DEFINE_SIMPLE_DEV_PM_OPS(stmfts1b_pm_ops, stmfts1b_suspend,
++				stmfts1b_resume);
++
++static const struct of_device_id stmfts1b_of_match[] = {
++	{ .compatible = "st,fts1ba90a" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, stmfts1b_of_match);
++
++static const struct i2c_device_id stmfts1b_id[] = {
++	{ "fts1ba90a" },
++	{ }
++};
++MODULE_DEVICE_TABLE(i2c, stmfts1b_id);
++
++static struct i2c_driver stmfts1b_driver = {
++	.driver = {
++		.name = "stmfts1b",
++		.of_match_table = stmfts1b_of_match,
++		.pm = pm_sleep_ptr(&stmfts1b_pm_ops),
++		.suppress_bind_attrs = true,
++	},
++	.probe = stmfts1b_probe,
++	.id_table = stmfts1b_id,
++};
++module_i2c_driver(stmfts1b_driver);
++
++MODULE_DESCRIPTION("STMicroelectronics FTS1BA90A touchscreen driver");
++MODULE_LICENSE("GPL");
+-- 
+2.56.0
+

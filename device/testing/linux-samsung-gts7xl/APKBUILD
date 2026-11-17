@@ -2,7 +2,7 @@
 # Kernel config based on: linux-postmarketos-qcom-sm8250 (refreshed with olddefconfig)
 pkgname=linux-samsung-gts7xl
 pkgver=7.3.4
-pkgrel=6
+pkgrel=7
 pkgdesc="Mainline kernel for Samsung Galaxy Tab S7+ 5G (gts7xl)"
 arch="aarch64"
 _carch="arm64"
@@ -36,6 +36,9 @@ source="https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-$pkgver.tar.xz
 	0006-arm64-dts-qcom-sm8250-samsung-gts7xl-enable-the-disp.patch
 	0007-drm-panel-s6tuum3-always-reset-on-first-enable-never.patch
 	0008-arm64-dts-qcom-sm8250-samsung-gts7xl-100-ms-minimum-.patch
+	0009-dt-bindings-input-touchscreen-add-ST-FTS1BA90A.patch
+	0010-Input-add-ST-FTS1BA90A-touchscreen-driver.patch
+	0011-arm64-dts-qcom-sm8250-samsung-gts7xl-enable-the-touc.patch
 	"
 builddir="$srcdir/linux-$pkgver"
 
@@ -77,7 +80,7 @@ package() {
 }
 sha512sums="
 db5508c3cf8b613b4680022eb785c036bcf8a5c952f8d0b2f3c2c7dc16779cf8bd954e0bca0b0b52451bac61430a687ae73205574f002f3b60de886640ebb9b0  linux-7.3.4.tar.xz
-a0b7916a8f79809545db8bd4a74c0db9a19e9ab38444782f82fe586fe2c3931bc0827f6afbc490644cf199dc86801367b7513e9bb1e8de8ea4928e6ca309d26d  config-samsung-gts7xl.aarch64
+fb8afb8a4ab9f976d05202aa4022c73f9d6591c03b62b660cb19742d71cb99d7d55aa9f528ad4ba519019992667e0a2dff0013a1c1f72b0724eb164f39fb670b  config-samsung-gts7xl.aarch64
 7a204395b5be27b4af1828cd46ab6753288b0157bb01cdc46a6d3953ba23ea0b5300ab1bec7fac5730abb989dcd1eb6f53c411631cdbde136eafe81a4492ace0  0001-arm64-dts-qcom-sm8250-add-Samsung-Galaxy-Tab-S7-5G-s.patch
 e9e85e11505b5c2d0a3433d40c98005cf1aa6bb95569ade6dbef41f6537faf0724c79f1acc1d53c2281290fcba6573d7283ad745c59e8921c2221b63cca0dddf  0002-arm64-dts-qcom-sm8250-samsung-gts7xl-memory-map-psto.patch
 cd923fabbb4fec9421cae5a7fd9b9c4e1f09099f42e622e5be437f30c422fa932f5091b84ce8bf665e1fa297f40b28b542fdf9ffbac47b103ffc9fb67456c682  0003-Input-pm8941-pwrkey-select-the-warm-PS_HOLD-reset-at.patch
@@ -86,4 +89,7 @@ cd923fabbb4fec9421cae5a7fd9b9c4e1f09099f42e622e5be437f30c422fa932f5091b84ce8bf66
 02c2e9c95c5e3681f920ce2ce6befd2271b428aab67d1d9a3b57d06c269d0e001404adc40deeb83c745c086cd109fd21c66bc10550384d98da0b1f664854c3bb  0006-arm64-dts-qcom-sm8250-samsung-gts7xl-enable-the-disp.patch
 8b2cdd3833970efba5d917b1d645765127688974939320288d756d87cdbd390b66e3306dd74ece4a8c8280739ada2b34f7aafe82aaa6fe567705d2520b8348c1  0007-drm-panel-s6tuum3-always-reset-on-first-enable-never.patch
 74390aee7d224d8905acae8df6055fc369518a6f14baacbad2d3788688d01b116d640693a7dbb84a31cd1e9b27140bae4cec94b98966ff6b706705f0b17ff055  0008-arm64-dts-qcom-sm8250-samsung-gts7xl-100-ms-minimum-.patch
+449d8ce9bfcf583a3e5b6423fc102cf0ee9be34f83e67355b2ec417d9464d95d340449db0ecb8301bee1782dbfd7de06e9c63aa9df3957ad28424794cbf8059b  0009-dt-bindings-input-touchscreen-add-ST-FTS1BA90A.patch
+8939b0eed6acbe4c7cdeef685f021dd9c6f4cb0409a249a332a518b2b58aa6bb3a0f8fc47526763c08317738e4b2cb9d01062fdc92eaf36f1d820ed5986ff7da  0010-Input-add-ST-FTS1BA90A-touchscreen-driver.patch
+336d7c49bd48f7d60d2fe1a5fd5e9ba1f448b1325bce679cf94a65b9eb0d681c12508618c30786fc4e3fb79d93f74421a01656f51d15e8ecdca77d9b9049b751  0011-arm64-dts-qcom-sm8250-samsung-gts7xl-enable-the-touc.patch
 "
