@@ -105,10 +105,12 @@ hyprland() {
 }
 
 nonfree_firmware() {
-	pkgdesc="GPU firmware: Adreno 650 SQE/GMU (linux-firmware) and the device zap shader"
-	# firmware-samsung-gts7xl-gpu is built locally only (Samsung-signed file,
-	# see its APKBUILD); without it the GPU stays off (zap load fails), display works.
-	depends="linux-firmware-qcom firmware-samsung-gts7xl-gpu"
+	pkgdesc="GPU and audio DSP firmware: Adreno 650 SQE/GMU (linux-firmware), the device zap shader and ADSP image"
+	# firmware-samsung-gts7xl-gpu and -adsp are built locally only (Samsung-signed
+	# files, see their APKBUILDs); without them the GPU stays off (zap load fails,
+	# display works) and there is no sound card (ADSP does not boot).
+	depends="linux-firmware-qcom firmware-samsung-gts7xl-gpu firmware-samsung-gts7xl-adsp
+		alsa-ucm-conf-samsung-gts7xl"
 	mkdir -p "$subpkgdir"
 }
 

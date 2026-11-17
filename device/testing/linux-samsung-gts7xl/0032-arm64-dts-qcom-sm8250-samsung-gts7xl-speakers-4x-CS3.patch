@@ -1,0 +1,324 @@
+From 5a3206351b89bf83fd9d370ae4298c6c8ccbcb05 Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Tue, 17 Nov 2026 20:23:28 +0700
+Subject: [PATCH 32/32] arm64: dts: qcom: sm8250-samsung-gts7xl: speakers (4x
+ CS35L41, ADSP)
+
+ADSP (Samsung-signed image from NON-HLOS, loaded from
+qcom/sm8250/samsung/gts7xl/adsp.mbn), QUPv3_1 with its GPI (stock EE
+offset 0x6000), and the four CS35L41 speaker amplifiers on i2c11 at
+1 MHz with the shared reset (GPIO 69) and interrupt (GPIO 84) lines.
+
+Boost: stock peak current 4100 mA; the stock driver leaves the boost
+coefficients at their reset values, which 1.0 uH / 15 uF reproduce.
+The interrupt output is open drain with a pull-up instead of the stock
+push-pull on all four chips sharing one line.
+
+Sound card: MultiMedia1/2 front ends, Primary TDM RX0 back end to the
+four amplifiers (stock q6 TDM settings: short sync, internal, 1-bit
+delay; stock pins gpio138-141).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../boot/dts/qcom/sm8250-samsung-gts7xl.dts   | 240 +++++++++++++++++-
+ 1 file changed, 239 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+index ce07ad261..6b51e3110 100644
+--- a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
++++ b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+@@ -5,12 +5,14 @@
+  * Bring-up tree: memory map, pstore, boot framebuffer, display (MDSS, DSI0,
+  * S6TUUM3 panel), touchscreen, keys, UFS, USB 2.0 device mode, MAX77705
+  * charger and fuel gauge (conservative limits, see the battery node), and the
+- * QCA6390 (Wi-Fi on PCIe0, Bluetooth on UART6). Every value comes from the device tree of the running stock
++ * QCA6390 (Wi-Fi on PCIe0, Bluetooth on UART6), the four CS35L41 speaker
++ * amplifiers on Primary TDM through the ADSP. Every value comes from the device tree of the running stock
+  * kernel (T976BXXS7DXH1, board-id <8 6>) or from its kernel configuration.
+  */
+ /dts-v1/;
+ 
+ #include <dt-bindings/regulator/qcom,rpmh-regulator.h>
++#include <dt-bindings/sound/qcom,q6asm.h>
+ #include "sm8250.dtsi"
+ #include "pm8150.dtsi"
+ #include "pm8150l.dtsi"
+@@ -348,6 +350,13 @@ sec-debug-rdx@100000000 {
+ 	};
+ };
+ 
++/* Audio DSP. Samsung-signed image from NON-HLOS (tools/extract-adsp.py). */
++&adsp {
++	firmware-name = "qcom/sm8250/samsung/gts7xl/adsp.mbn";
++
++	status = "okay";
++};
++
+ &apps_rsc {
+ 	regulators-0 {
+ 		compatible = "qcom,pm8150-rpmh-regulators";
+@@ -510,6 +519,13 @@ &gpi_dma0 {
+ 	status = "okay";
+ };
+ 
++/* QUPv3_1 GPI, for i2c11. EE offset from the stock tree (qcom,gpi-ee-offset). */
++&gpi_dma1 {
++	qcom,gpi-ee-offset = <0x6000>;
++
++	status = "okay";
++};
++
+ &gpu {
+ 	status = "okay";
+ };
+@@ -610,6 +626,105 @@ touchscreen@49 {
+ 	};
+ };
+ 
++/*
++ * Speaker amplifiers: 4x CS35L41 on QUP SE11 (stock qupv3_se11_i2c, 1 MHz),
++ * one shared reset line (GPIO 69) and one shared interrupt line (GPIO 84).
++ * Stock: cirrus,dsp-part-name "cs35l40-spk", boost-peak 4100 mA; the
++ * stock driver leaves the boost inductor/capacitor coefficients at their
++ * reset values (BSTCVRT_COEFF 0x2424, SLOPE_LBST 0x7500), which is what
++ * 1.0 uH / 0-19 uF program here. Stock drives GPIO2 as a push-pull
++ * interrupt on all four chips; here it is open drain with a pull-up on the
++ * SoC side, so the four outputs never fight on the shared line.
++ * Every amp lists the reset line: the first to probe owns it, the others
++ * see -EBUSY ("assuming shared reset"). Positions checked by ear, one amp
++ * at a time, with the tablet in landscape as the display is mounted:
++ * 0x41 top left, 0x40 bottom left, 0x43 top right, 0x42 bottom right
++ * (the stock cirrus,right-channel-amp flags on 0x42/0x40 do not match this
++ * orientation, so they are not used for the channel mapping).
++ * No DSP firmware is loaded (no speaker protection): userspace keeps the
++ * analog gain at its minimum, see the UCM files.
++ */
++&i2c11 {
++	clock-frequency = <1000000>;
++
++	pinctrl-names = "default";
++	pinctrl-0 = <&qup_i2c11_default>, <&spk_amp_gpio_default>;
++
++	status = "okay";
++
++	spk_amp_tr: speaker-amp@43 {
++		compatible = "cirrus,cs35l41";
++		reg = <0x43>;
++		#sound-dai-cells = <1>;
++		sound-name-prefix = "Top Right";
++
++		interrupt-parent = <&tlmm>;
++		interrupts = <84 IRQ_TYPE_LEVEL_LOW>;
++		reset-gpios = <&tlmm 69 GPIO_ACTIVE_HIGH>;
++
++		cirrus,boost-peak-milliamp = <4100>;
++		cirrus,boost-ind-nanohenry = <1000>;
++		cirrus,boost-cap-microfarad = <15>;
++		cirrus,asp-sdout-hiz = <3>;
++		cirrus,gpio2-src-select = <2>;
++		cirrus,gpio2-output-enable;
++	};
++
++	spk_amp_br: speaker-amp@42 {
++		compatible = "cirrus,cs35l41";
++		reg = <0x42>;
++		#sound-dai-cells = <1>;
++		sound-name-prefix = "Bottom Right";
++
++		interrupt-parent = <&tlmm>;
++		interrupts = <84 IRQ_TYPE_LEVEL_LOW>;
++		reset-gpios = <&tlmm 69 GPIO_ACTIVE_HIGH>;
++
++		cirrus,boost-peak-milliamp = <4100>;
++		cirrus,boost-ind-nanohenry = <1000>;
++		cirrus,boost-cap-microfarad = <15>;
++		cirrus,asp-sdout-hiz = <3>;
++		cirrus,gpio2-src-select = <2>;
++		cirrus,gpio2-output-enable;
++	};
++
++	spk_amp_tl: speaker-amp@41 {
++		compatible = "cirrus,cs35l41";
++		reg = <0x41>;
++		#sound-dai-cells = <1>;
++		sound-name-prefix = "Top Left";
++
++		interrupt-parent = <&tlmm>;
++		interrupts = <84 IRQ_TYPE_LEVEL_LOW>;
++		reset-gpios = <&tlmm 69 GPIO_ACTIVE_HIGH>;
++
++		cirrus,boost-peak-milliamp = <4100>;
++		cirrus,boost-ind-nanohenry = <1000>;
++		cirrus,boost-cap-microfarad = <15>;
++		cirrus,asp-sdout-hiz = <3>;
++		cirrus,gpio2-src-select = <2>;
++		cirrus,gpio2-output-enable;
++	};
++
++	spk_amp_bl: speaker-amp@40 {
++		compatible = "cirrus,cs35l41";
++		reg = <0x40>;
++		#sound-dai-cells = <1>;
++		sound-name-prefix = "Bottom Left";
++
++		interrupt-parent = <&tlmm>;
++		interrupts = <84 IRQ_TYPE_LEVEL_LOW>;
++		reset-gpios = <&tlmm 69 GPIO_ACTIVE_HIGH>;
++
++		cirrus,boost-peak-milliamp = <4100>;
++		cirrus,boost-ind-nanohenry = <1000>;
++		cirrus,boost-cap-microfarad = <15>;
++		cirrus,asp-sdout-hiz = <3>;
++		cirrus,gpio2-src-select = <2>;
++		cirrus,gpio2-output-enable;
++	};
++};
++
+ &mdss {
+ 	status = "okay";
+ };
+@@ -726,18 +841,141 @@ &pon_resin {
+ 	status = "okay";
+ };
+ 
++&q6afedai {
++	/* stock qcom,msm-dai-tdm-pri-rx: short sync, internal, 1-bit delay */
++	dai@18 {
++		reg = <PRIMARY_TDM_RX_0>;
++		qcom,tdm-sync-mode = <0>;
++		qcom,tdm-sync-src = <1>;
++		qcom,tdm-data-out = <0>;
++		qcom,tdm-invert-sync = <0>;
++		qcom,tdm-data-delay = <1>;
++		qcom,tdm-data-align = <0>;
++	};
++};
++
++&q6asmdai {
++	dai@0 {
++		reg = <MSM_FRONTEND_DAI_MULTIMEDIA1>;
++	};
++
++	dai@1 {
++		reg = <MSM_FRONTEND_DAI_MULTIMEDIA2>;
++	};
++};
++
+ &qupv3_id_0 {
+ 	status = "okay";
+ };
+ 
++&qupv3_id_1 {
++	status = "okay";
++};
++
+ &removed_mem {
+ 	reg = <0x0 0x80b00000 0x0 0x7900000>;
+ };
+ 
++&sound {
++	compatible = "qcom,sm8250-sndcard";
++	model = "Samsung Galaxy Tab S7+ 5G";
++
++	pinctrl-names = "default";
++	pinctrl-0 = <&pri_tdm_active>;
++
++	mm1-dai-link {
++		link-name = "MultiMedia1";
++
++		cpu {
++			sound-dai = <&q6asmdai MSM_FRONTEND_DAI_MULTIMEDIA1>;
++		};
++	};
++
++	mm2-dai-link {
++		link-name = "MultiMedia2";
++
++		cpu {
++			sound-dai = <&q6asmdai MSM_FRONTEND_DAI_MULTIMEDIA2>;
++		};
++	};
++
++	speaker-dai-link {
++		link-name = "Speaker Playback";
++
++		cpu {
++			sound-dai = <&q6afedai PRIMARY_TDM_RX_0>;
++		};
++
++		platform {
++			sound-dai = <&q6routing>;
++		};
++
++		/*
++		 * left, right, left, right: the machine driver gives codec n the
++		 * slot n % 2, so the left pair plays channel 0 and the right pair
++		 * channel 1 (landscape, as the display is mounted)
++		 */
++		codec {
++			sound-dai = <&spk_amp_tl 0>, <&spk_amp_tr 0>,
++				    <&spk_amp_bl 0>, <&spk_amp_br 0>;
++		};
++	};
++};
++
+ &tlmm {
+ 	/* SPI of the fingerprint sensor, owned by TrustZone */
+ 	gpio-reserved-ranges = <20 4>;
+ 
++	/* Primary TDM to the speaker amplifiers (stock pri_tdm_*_active) */
++	pri_tdm_active: pri-tdm-active-state {
++		sck-pins {
++			pins = "gpio138";
++			function = "mi2s0_sck";
++			drive-strength = <8>;
++			bias-disable;
++			output-high;
++		};
++
++		din-pins {
++			pins = "gpio139";
++			function = "mi2s0_data0";
++			drive-strength = <8>;
++			bias-disable;
++		};
++
++		dout-pins {
++			pins = "gpio140";
++			function = "mi2s0_data1";
++			drive-strength = <8>;
++			bias-disable;
++		};
++
++		ws-pins {
++			pins = "gpio141";
++			function = "mi2s0_ws";
++			drive-strength = <8>;
++			bias-disable;
++			output-high;
++		};
++	};
++
++	/* CS35L41 reset (GPIO 69) and shared open-drain interrupt (GPIO 84) */
++	spk_amp_gpio_default: spk-amp-gpio-default-state {
++		reset-pins {
++			pins = "gpio69";
++			function = "gpio";
++			drive-strength = <2>;
++			bias-disable;
++		};
++
++		irq-pins {
++			pins = "gpio84";
++			function = "gpio";
++			drive-strength = <2>;
++			bias-pull-up;
++		};
++	};
++
+ 	/* Pin states copied from the stock tree (pmx_sde*) */
+ 	panel_reset_active: panel-reset-active-state {
+ 		pins = "gpio82";
+-- 
+2.56.0
+

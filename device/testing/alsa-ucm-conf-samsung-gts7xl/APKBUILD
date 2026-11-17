@@ -1,0 +1,26 @@
+# Maintainer: tarpediem <tarpediem@gmail.com>
+pkgname=alsa-ucm-conf-samsung-gts7xl
+pkgver=1
+pkgrel=0
+pkgdesc="ALSA UCM configuration for the Samsung Galaxy Tab S7+ 5G"
+url="https://github.com/tarpediem/gts7xl-mainline"
+arch="noarch"
+license="BSD-3-Clause"
+depends="alsa-ucm-conf"
+source="
+	card.conf
+	HiFi.conf
+"
+options="!check"
+builddir="$srcdir"
+
+package() {
+	# conf.d/<card driver>/<card name>.conf; the card name is the DT model
+	install -Dm644 card.conf \
+		"$pkgdir/usr/share/alsa/ucm2/conf.d/sm8250/Samsung Galaxy Tab S7+ 5G.conf"
+	install -Dm644 HiFi.conf -t "$pkgdir/usr/share/alsa/ucm2/Samsung/gts7xl"
+}
+sha512sums="
+24a895f3e090918400560446ada40a8ade71c03097ca02985a3235bb390e126372b50eefce1924b7b0a41f5f2f4b47e97c628e8011ad3f62567359212a84b3c1  card.conf
+961384bf96c259a920d8c6eed1a867577e1736b91a7f7befc1370d2ad758117b9ac9f9baf176366485e3c0f6572ac4134f4ee9fde1b5c70b40d1fb84fa0c1b02  HiFi.conf
+"

@@ -1,0 +1,33 @@
+# Audio DSP (ADSP) firmware of the Samsung Galaxy Tab S7+ 5G (SM-T976B).
+#
+# Not redistributable: it is signed for this device and only exists in Samsung's
+# firmware. The files are NOT in this repository. Make them locally from the stock BL tar:
+#   tools/extract-adsp.py BL_T976B<...>.tar.md5 build/firmware-audio
+#   cp build/firmware-audio/{adsp.mbn,adspr.jsn,adspua.jsn} \
+#      <pmaports>/device/testing/firmware-samsung-gts7xl-adsp/
+# (tools/ is in https://github.com/tarpediem/gts7xl-mainline), then build this package.
+# pkgver = build date of T976BXXS7DXH1; the sha512 below are those of its NON-HLOS
+# image/adsp.{mdt,b00-b20} joined with tools/pil-squash.py and of image/adspr.jsn, adspua.jsn.
+pkgname=firmware-samsung-gts7xl-adsp
+pkgver=20240802
+pkgrel=0
+pkgdesc="Samsung Galaxy Tab S7+ 5G audio DSP firmware (local build only)"
+url="https://github.com/tarpediem/gts7xl-mainline"
+arch="aarch64"
+license="proprietary"
+options="!check !strip !archcheck !tracedeps"
+source="adsp.mbn adspr.jsn adspua.jsn"
+
+package() {
+	local f
+	for f in adsp.mbn adspr.jsn adspua.jsn; do
+		install -Dm644 "$srcdir"/$f \
+			"$pkgdir"/lib/firmware/qcom/sm8250/samsung/gts7xl/$f
+	done
+}
+
+sha512sums="
+e854d7198f819510dcb41e115d3d77e99506a95b495ee2bb54aa5156b612aefd9183c2dbd72113bac4eab428da1d2695c2cda610f319feb90009d181402a98ab  adsp.mbn
+321d9327b1c98ff67f7b120e27c71ab9ab430e64013aa73091dd3227c98ce139beafe67796f0d82d213a1617b88185f54486d42d7e840200a9511eae8c7fae8b  adspr.jsn
+4dfa7cc75c053ae46eac428aa93445d7b59e7860929418e6fdaf29b75d643d331709cfa0c14be7a7dc581af3ba8eb51fae88414f8fd09f4f827b7a17041977e0  adspua.jsn
+"
