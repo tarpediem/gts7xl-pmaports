@@ -2,7 +2,7 @@
 pkgname=device-samsung-gts7xl
 pkgdesc="Samsung Galaxy Tab S7+ 5G"
 pkgver=1
-pkgrel=13
+pkgrel=14
 url="https://postmarketos.org"
 license="MIT"
 arch="aarch64"
