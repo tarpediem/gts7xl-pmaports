@@ -1,0 +1,84 @@
+From fb88ce339d6f277bebed4e15827275902386e830 Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Tue, 17 Nov 2026 23:28:54 +0700
+Subject: [PATCH] Input: wacom_w90xx, gts7xl DT: axis ranges from the chip's
+ query block (as stock)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts |  6 ++----
+ drivers/input/touchscreen/wacom_w90xx.c            | 13 +++++++++----
+ 2 files changed, 11 insertions(+), 8 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+index 62aa92671..651abfa54 100644
+--- a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
++++ b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+@@ -720,7 +720,8 @@ touchscreen@49 {
+  * The chip reports in the panel's landscape frame (stock: y inverted, then
+  * x/y swapped into Android's portrait frame, which the touchscreen undoes).
+  * Stock: irq gpio136 (level low), flash-mode pin gpio6 (kept low), pen
+- * detect gpio7 (not used here), max 22656 x 14160.
++ * detect gpio7 (not used here). Ranges come from the chip (26712 x 16714;
++ * the stock DT max_coords 22656 x 14160 are unused there: no use_dt_coord).
+  */
+ &i2c17 {
+ 	clock-frequency = <400000>;
+@@ -737,9 +738,6 @@ digitizer@56 {
+ 
+ 		pinctrl-names = "default";
+ 		pinctrl-0 = <&spen_int_default>;
+-
+-		touchscreen-size-x = <22656>;
+-		touchscreen-size-y = <14160>;
+ 	};
+ };
+ 
+diff --git a/drivers/input/touchscreen/wacom_w90xx.c b/drivers/input/touchscreen/wacom_w90xx.c
+index 2c96b85ed..4579961ad 100644
+--- a/drivers/input/touchscreen/wacom_w90xx.c
++++ b/drivers/input/touchscreen/wacom_w90xx.c
+@@ -15,8 +15,8 @@
+  *   from bytes 5-6, height = byte 7, tilt x/y = bytes 8/9 (signed). Other
+  *   packets (notifications, replies, pen garage) are ignored here.
+  *
+- * Axes are reported as the chip sends them, transformed by the generic
+- * touchscreen-* properties.
++ * Axes are reported as the chip sends them, ranges from the query block,
++ * transformed by the generic touchscreen-* properties if any.
+  */
+ 
+ #include <linux/delay.h>
+@@ -51,6 +51,8 @@ struct w90xx {
+ 	struct regulator *vdd;
+ 	struct gpio_desc *fwe_gpio;
+ 	struct touchscreen_properties props;
++	unsigned int max_x;
++	unsigned int max_y;
+ 	unsigned int max_pressure;
+ 	unsigned int max_tilt;
+ 	unsigned int max_height;
+@@ -145,6 +147,8 @@ static int w90xx_query(struct w90xx *w)
+ 		return ret < 0 ? ret : -ENODEV;
+ 	}
+ 
++	w->max_x = get_unaligned_be16(&q[1]);
++	w->max_y = get_unaligned_be16(&q[3]);
+ 	w->max_pressure = get_unaligned_be16(&q[5]);
+ 	w->max_tilt = q[11];
+ 	w->max_height = q[13];
+@@ -206,8 +210,9 @@ static int w90xx_probe(struct i2c_client *client)
+ 	input_set_capability(input, EV_KEY, BTN_TOOL_PEN);
+ 	input_set_capability(input, EV_KEY, BTN_TOOL_RUBBER);
+ 	input_set_capability(input, EV_KEY, BTN_STYLUS);
+-	input_set_abs_params(input, ABS_X, 0, 0xffff, 4, 0);
+-	input_set_abs_params(input, ABS_Y, 0, 0xffff, 4, 0);
++	/* Stock uses the ranges of the query, not its DT max_coords */
++	input_set_abs_params(input, ABS_X, 0, w->max_x, 4, 0);
++	input_set_abs_params(input, ABS_Y, 0, w->max_y, 4, 0);
+ 	input_set_abs_params(input, ABS_PRESSURE, 0, w->max_pressure, 0, 0);
+ 	input_set_abs_params(input, ABS_DISTANCE, 0, w->max_height, 0, 0);
+ 	input_set_abs_params(input, ABS_TILT_X, -(int)w->max_tilt, w->max_tilt, 0, 0);
+-- 
+2.56.0
+
