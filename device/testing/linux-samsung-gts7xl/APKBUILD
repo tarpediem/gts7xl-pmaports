@@ -2,7 +2,7 @@
 # Kernel config based on: linux-postmarketos-qcom-sm8250 (refreshed with olddefconfig)
 pkgname=linux-samsung-gts7xl
 pkgver=7.3.4
-pkgrel=24
+pkgrel=25
 pkgdesc="Mainline kernel for Samsung Galaxy Tab S7+ 5G (gts7xl)"
 arch="aarch64"
 _carch="arm64"
@@ -78,6 +78,8 @@ source="https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-$pkgver.tar.xz
 	0043-arm64-dts-qcom-sm8250-samsung-gts7xl-1.5-A-charge-cu.patch
 	0044-power-supply-max77705-input-limit-from-the-Type-C-cu.patch
 	0045-arm64-dts-qcom-sm8250-samsung-gts7xl-Type-C-input-li.patch
+	0046-power-supply-max77705-USB-data-role-and-VBUS-output-.patch
+	0047-arm64-dts-qcom-sm8250-samsung-gts7xl-USB-dual-role.patch
 	"
 builddir="$srcdir/linux-$pkgver"
 
@@ -166,4 +168,6 @@ f5a35b0e2a42d5ebecab8c9e9a31f92158602fbad18aece8eefa13131d0f98ddd2436350c30612b7
 d85e16f7dbc4ca09f7ba5b5cc56e1b5ef45d1c3b728bd21e0896330351c2bd92a6a102cb09339b6fce82153570f135927cd91c3880d355b0c917fe58d29a47b0  0043-arm64-dts-qcom-sm8250-samsung-gts7xl-1.5-A-charge-cu.patch
 9b20842ee9578439525a4f08e41140b2a266c594ed12899872663c1ce39dff3f87fb57ec599c62a85780d12ab15ab068e53a84caa3cbe7c69370e2ca78174699  0044-power-supply-max77705-input-limit-from-the-Type-C-cu.patch
 b6f6c46152167e2bca21fd182629afe6dc05d4ecb80ef0f79d7f86852128f281345ba42a52b9df8fea264bbb211f51f99dcc7232a6fe885d3dba1af88b19734d  0045-arm64-dts-qcom-sm8250-samsung-gts7xl-Type-C-input-li.patch
+a2e657443c49ba480086469ea2c86cf4a129fad6d7294a97436748c0ea4fe2a7601d955c05bdb5741038e1076d6495101c46e9f19f3baffdfeda56dae02df00f  0046-power-supply-max77705-USB-data-role-and-VBUS-output-.patch
+20edeba8348dfece32384a407aac2cb02224d33e5919d4598153d58ea113a2954b0a961af56e392c6b30264f50b71f782734e09b9ee52a10fa61363f64c90317  0047-arm64-dts-qcom-sm8250-samsung-gts7xl-USB-dual-role.patch
 "

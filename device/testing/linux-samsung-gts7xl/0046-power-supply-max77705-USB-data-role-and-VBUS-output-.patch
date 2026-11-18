@@ -1,0 +1,576 @@
+From 96ffbb3328914da69eacf23117c52ac84e52fd8f Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Wed, 18 Nov 2026 22:45:50 +0700
+Subject: [PATCH 46/47] power: supply: max77705: USB data role and VBUS output
+ from the USB-C block
+
+With the safety monitor, the USB-C block and a "usb-role-switch"
+reference, poll CC_STATUS0 of the USB-C block every second (read only,
+address not claimed): a debounced SOURCE attach state (a sink such as an
+OTG adapter or hub is attached) sets the host role, anything else the
+device role. The role changes only on a change of the attach state, so a
+role set by hand in /sys/class/usb_role stays until the next one;
+usb_role_auto = 0 stops the automatic role.
+
+VBUS output: the charger's OTG boost (CNFG_00 MODE 0x0a, CNFG_02 OTG_ILIM
+900 mA as stock), off unless otg_vbus = auto. It is switched on only
+with SOURCE attached, no VBUS seen by BC1.2, CHGIN not valid and
+CHGIN_DTLS 0, the battery inside the charging temperature window and at
+or above maxim,otg-min-capacity-percent (default 15 %), and only after
+the charger is off (CHG_EN 0); the state is read back. While it is on,
+every poll re-reads the attach state, the mode, CHG_EN, OTG_ILIM, the
+bypass over-current bit, the thermistor and the capacity; any change,
+read error or fault switches it off (MODE 0x04, CHG_EN 0, read back,
+retried). A fault latches until the next detach. The safety monitor and
+the AICL handler leave the charger alone while the boost is on and
+resume after. Off on unbind and on shutdown.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../bindings/power/supply/maxim,max77705.yaml |  17 +
+ drivers/power/supply/max77705_charger.c       | 407 ++++++++++++++++++
+ include/linux/power/max77705_charger.h        |  19 +
+ 3 files changed, 443 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/power/supply/maxim,max77705.yaml b/Documentation/devicetree/bindings/power/supply/maxim,max77705.yaml
+index 70d1f5d1a..8291bec93 100644
+--- a/Documentation/devicetree/bindings/power/supply/maxim,max77705.yaml
++++ b/Documentation/devicetree/bindings/power/supply/maxim,max77705.yaml
+@@ -59,6 +59,21 @@ properties:
+       advertising 3.0 A.
+     maximum: 3000000
+ 
++  usb-role-switch:
++    $ref: /schemas/types.yaml#/definitions/phandle
++    description:
++      USB role switch (the USB controller) to set from the USB-C block's
++      attach state: host while a sink is attached, device otherwise. With
++      it, the charger can also supply VBUS (OTG boost, 900 mA) to an
++      attached sink, off until enabled from userspace.
++
++  maxim,otg-min-capacity-percent:
++    description:
++      No VBUS output below this battery capacity.
++    minimum: 5
++    maximum: 100
++    default: 15
++
+   maxim,dcp-constant-charge-current-microamp:
+     description:
+       With the battery thermistor and DCP detection, charge current used
+@@ -79,6 +94,8 @@ dependencies:
+   maxim,dcp-constant-charge-current-microamp: [ maxim,dcp-input-current-limit-microamp ]
+   maxim,typec-1500ma-input-current-limit-microamp: [ maxim,dcp-input-current-limit-microamp ]
+   maxim,typec-3000ma-input-current-limit-microamp: [ maxim,dcp-input-current-limit-microamp ]
++  usb-role-switch: [ maxim,dcp-input-current-limit-microamp ]
++  maxim,otg-min-capacity-percent: [ usb-role-switch ]
+ 
+ required:
+   - compatible
+diff --git a/drivers/power/supply/max77705_charger.c b/drivers/power/supply/max77705_charger.c
+index 28cbbdf6e..412d08588 100644
+--- a/drivers/power/supply/max77705_charger.c
++++ b/drivers/power/supply/max77705_charger.c
+@@ -21,6 +21,7 @@
+ #include <linux/property.h>
+ #include <linux/regmap.h>
+ #include <linux/timekeeping.h>
++#include <linux/usb/role.h>
+ 
+ static const char *max77705_charger_model		= "max77705";
+ static const char *max77705_charger_manufacturer	= "Maxim Integrated";
+@@ -46,6 +47,11 @@ static const char *max77705_charger_manufacturer	= "Maxim Integrated";
+ #define MAX77705_CC_CCISTAT_3_0A	3
+ #define MAX77705_CC_CCSTAT		GENMASK(2, 0)	/* attach state */
+ #define MAX77705_CC_CCSTAT_SINK		1
++#define MAX77705_CC_CCSTAT_SOURCE	2	/* a sink is attached: host role */
++#define MAX77705_CC_DEBOUNCE		2	/* equal reads before a role change */
++#define MAX77705_USBC_POLL_MS		1000
++#define MAX77705_BYP_DTLS_OTG_OVC	BIT(0)	/* vendor: bypass (OTG) over-current */
++#define MAX77705_OTG_SOC_MIN_DEFAULT	15
+ /* ceilings for the Type-C input limits (stock: Rp 1.5 A 1400 mA, Rp 3 A 3000 mA) */
+ #define MAX77705_TYPEC15_CEIL_UA	1400000
+ #define MAX77705_TYPEC30_CEIL_UA	3000000
+@@ -92,6 +98,9 @@ static irqreturn_t max77705_aicl_irq(int irq, void *irq_drv_data)
+ 	int err, steps = 0;
+ 
+ 	mutex_lock(&chg->lock);
++	/* no input while the VBUS output is on: nothing to limit */
++	if (chg->boost_on)
++		goto out;
+ 	err = regmap_read(chg->regmap, MAX77705_CHG_REG_INT_OK, &irq_status);
+ 	if (err < 0)
+ 		goto out;
+@@ -1002,6 +1011,14 @@ static void max77705_safety_check(struct max77705_charger_data *chg)
+ 	u64 now, delta;
+ 
+ 	mutex_lock(&chg->lock);
++	/* the VBUS output owns the charger while it is on (usbc_work checks it) */
++	if (chg->boost_on) {
++		if (chg->safety_ready)
++			queue_delayed_work(system_wq, &chg->safety_work,
++					   msecs_to_jiffies(MAX77705_SAFETY_POLL_MS));
++		mutex_unlock(&chg->lock);
++		return;
++	}
+ 	block = old_block = chg->block;
+ 	block &= ~(BIT(MAX77705_BLOCK_IO) | BIT(MAX77705_BLOCK_USER));
+ 	if (chg->user_inhibit)
+@@ -1198,6 +1215,351 @@ static void max77705_safety_check(struct max77705_charger_data *chg)
+ 		power_supply_changed(chg->psy_chg);
+ }
+ 
++/*
++ * USB-C data role and VBUS output.
++ *
++ * The USB-C block's firmware does the Type-C state machine; CC_STATUS0
++ * CCStat tells the attach state (read only, unclaimed, like BC_STATUS):
++ * SINK (the tablet is the sink: PC or charger) -> device role, SOURCE (a
++ * sink is attached: OTG adapter, hub, keyboard) -> host role, anything else
++ * -> device. The role only changes on a debounced CCStat change, so a role
++ * written by hand to /sys/class/usb_role stays until the next attach change.
++ *
++ * VBUS output is the charger's OTG boost (CNFG_00 MODE 0x0a), 900 mA limit
++ * as stock (CNFG_02 OTG_ILIM). Off by default: otg_vbus = auto allows it.
++ * It is switched on only when every check passes, and checked every poll
++ * while on; any failed check, read error or unknown state switches it off.
++ * While it is on the safety monitor does not touch the charger (charging and
++ * boost exclude each other: CHG_EN is 0, MODE is boost-only); it resumes
++ * once the boost is off.
++ */
++static int max77705_read_cc_stat(struct max77705_charger_data *chg)
++{
++	union i2c_smbus_data data;
++	int ret;
++
++	ret = i2c_smbus_xfer(chg->usbc_adap, MAX77705_USBC_ADDR, 0, I2C_SMBUS_READ,
++			     MAX77705_USBC_REG_CC_STATUS0, I2C_SMBUS_BYTE_DATA, &data);
++	if (ret)
++		return ret;
++	return FIELD_GET(MAX77705_CC_CCSTAT, data.byte);
++}
++
++/* 1 = no outside VBUS and no valid CHGIN, 0 = there is, < 0 = unknown */
++static int max77705_no_vbus_input(struct max77705_charger_data *chg)
++{
++	union i2c_smbus_data data;
++	unsigned int okreg, dtls;
++
++	if (i2c_smbus_xfer(chg->usbc_adap, MAX77705_USBC_ADDR, 0, I2C_SMBUS_READ,
++			   MAX77705_USBC_REG_BC_STATUS, I2C_SMBUS_BYTE_DATA, &data) ||
++	    regmap_read(chg->regmap, MAX77705_CHG_REG_INT_OK, &okreg) ||
++	    regmap_read(chg->regmap, MAX77705_CHG_REG_DETAILS_00, &dtls))
++		return -EIO;
++
++	/* CHGIN_DTLS 0: VBUS below UVLO; anything else means a voltage on CHGIN */
++	return !(data.byte & MAX77705_BC_VBUSDET) && !(okreg & MAX77705_CHGIN_OK) &&
++	       FIELD_GET(MAX77705_CHGIN_DTLS, dtls) == 0;
++}
++
++/*
++ * Battery inside the charging temperature window and above the capacity
++ * floor, from fresh readings. Returns true only if every reading worked.
++ */
++static bool max77705_boost_battery_ok(struct max77705_charger_data *chg)
++{
++	struct power_supply_battery_info *info = chg->bat_info;
++	union power_supply_propval pv;
++	int temp;
++
++	if (iio_read_channel_processed(chg->temp_chan, &temp) < 0 ||
++	    temp <= MAX77705_TEMP_FAULT_LOW_MC || temp >= MAX77705_TEMP_FAULT_HIGH_MC)
++		return false;
++	if (info->temp_alert_min > INT_MIN && temp < info->temp_alert_min * 1000)
++		return false;
++	if (info->temp_alert_max < INT_MAX && temp >= info->temp_alert_max * 1000)
++		return false;
++
++	if (!chg->fg_psy)
++		chg->fg_psy = power_supply_get_by_name("max170xx_battery");
++	if (!chg->fg_psy ||
++	    power_supply_get_property(chg->fg_psy, POWER_SUPPLY_PROP_CAPACITY, &pv) ||
++	    pv.intval < 0 || pv.intval > 100 || pv.intval < (int)chg->otg_soc_min)
++		return false;
++
++	return true;
++}
++
++/* boost off: MODE buck only, charger off; the safety monitor takes over */
++static void max77705_boost_off(struct max77705_charger_data *chg, const char *why)
++{
++	unsigned int mode = MAX77705_OTG_CTRL;
++	int i;
++
++	if (!chg->boost_on)
++		return;
++
++	for (i = 0; i < 3; i++) {
++		max77705_charger_force_off(chg);
++		if (!regmap_field_read(chg->rfield[MAX77705_MODE], &mode) &&
++		    !(mode & MAX77705_BOOST_MASK))
++			break;
++	}
++	if (mode & MAX77705_BOOST_MASK)
++		dev_crit(chg->dev, "VBUS output: boost still on after switching off (MODE 0x%x)\n",
++			 mode);
++	chg->boost_on = false;
++	chg->boost_offs++;
++	dev_info(chg->dev, "VBUS output off (%s)\n", why);
++	if (chg->safety_ready)
++		mod_delayed_work(system_wq, &chg->safety_work, 0);
++}
++
++static void max77705_boost_kick(struct max77705_charger_data *chg)
++{
++	regmap_update_bits(chg->regmap, MAX77705_CHG_REG_CNFG_06,
++			   MAX77705_WDTCLR_MASK, MAX77705_WDTCLR);
++}
++
++/* the boost state in the registers: MODE boost only, CHG_EN 0, 900 mA, no fault */
++static int max77705_boost_state_ok(struct max77705_charger_data *chg)
++{
++	unsigned int mode, en, ilim, dtls2;
++
++	if (regmap_field_read(chg->rfield[MAX77705_MODE], &mode) ||
++	    regmap_field_read(chg->rfield[MAX77705_CHG_EN], &en) ||
++	    regmap_field_read(chg->rfield[MAX77705_OTG_ILIM], &ilim) ||
++	    regmap_read(chg->regmap, MAX77705_CHG_REG_DETAILS_02, &dtls2))
++		return -EIO;
++	if (FIELD_GET(MAX77705_BYP_DTLS, dtls2) & MAX77705_BYP_DTLS_OTG_OVC)
++		return -EOVERFLOW;
++	return mode == MAX77705_OTG_CTRL && !en && ilim == MAX77705_OTG_ILIM_900;
++}
++
++static void max77705_boost_on(struct max77705_charger_data *chg)
++{
++	int ret;
++
++	if (!chg->usbc_ready || chg->boost_on || chg->boost_fault || !chg->otg_vbus_auto)
++		return;
++	if (max77705_no_vbus_input(chg) != 1) {
++		dev_info(chg->dev, "VBUS output not enabled: VBUS or CHGIN present or unknown\n");
++		return;
++	}
++	if (!max77705_boost_battery_ok(chg)) {
++		dev_info(chg->dev, "VBUS output not enabled: battery temperature or capacity\n");
++		return;
++	}
++
++	/* from here the safety monitor leaves the charger alone */
++	chg->boost_on = true;
++	regmap_field_write(chg->rfield[MAX77705_CHGPROT], MAX77705_CHGPROT_UNLOCKED);
++	ret = regmap_field_write(chg->rfield[MAX77705_CHG_EN], MAX77705_CHG_DISABLE);
++	if (!ret)
++		ret = regmap_field_write(chg->rfield[MAX77705_OTG_ILIM], MAX77705_OTG_ILIM_900);
++	if (!ret)
++		ret = regmap_field_write(chg->rfield[MAX77705_MODE], MAX77705_OTG_CTRL);
++	if (ret || max77705_boost_state_ok(chg) != 1) {
++		max77705_boost_off(chg, "not verified after enabling");
++		chg->boost_fault = true;
++		return;
++	}
++	max77705_boost_kick(chg);
++	dev_info(chg->dev, "VBUS output on (OTG boost, 900 mA limit)\n");
++}
++
++/* every poll while on; any doubt switches it off */
++static void max77705_boost_monitor(struct max77705_charger_data *chg, int cc_stat)
++{
++	int state;
++
++	if (!chg->boost_on)
++		return;
++	if (!chg->otg_vbus_auto) {
++		max77705_boost_off(chg, "disabled");
++		return;
++	}
++	if (cc_stat != MAX77705_CC_CCSTAT_SOURCE) {
++		max77705_boost_off(chg, cc_stat < 0 ? "USB-C status unreadable" : "detach");
++		return;
++	}
++	state = max77705_boost_state_ok(chg);
++	if (state != 1) {
++		chg->boost_fault = true;
++		max77705_boost_off(chg, state == -EOVERFLOW ? "over-current" :
++				   state < 0 ? "register read error" : "unexpected charger mode");
++		return;
++	}
++	if (!max77705_boost_battery_ok(chg)) {
++		chg->boost_fault = true;
++		max77705_boost_off(chg, "battery temperature or capacity");
++		return;
++	}
++	max77705_boost_kick(chg);
++}
++
++static void max77705_set_role(struct max77705_charger_data *chg, enum usb_role role)
++{
++	int ret;
++
++	if (!chg->role_sw || !chg->role_auto)
++		return;
++	ret = usb_role_switch_set_role(chg->role_sw, role);
++	if (ret)
++		dev_warn(chg->dev, "USB role %s: %d\n", usb_role_string(role), ret);
++	else
++		dev_info(chg->dev, "USB role %s (CC status %d)\n", usb_role_string(role),
++			 chg->cc_stat);
++}
++
++static void max77705_usbc_work(struct work_struct *work)
++{
++	struct max77705_charger_data *chg =
++		container_of(to_delayed_work(work), struct max77705_charger_data, usbc_work);
++	struct usb_role_switch *sw;
++	int raw;
++
++	/* the role switch (dwc3) may appear after the charger */
++	if (!chg->role_sw) {
++		sw = fwnode_usb_role_switch_get(dev_fwnode(chg->dev));
++		if (!IS_ERR_OR_NULL(sw)) {
++			mutex_lock(&chg->lock);
++			chg->role_sw = sw;
++			chg->cc_stat = -1;	/* apply the current state */
++			mutex_unlock(&chg->lock);
++		}
++	}
++
++	mutex_lock(&chg->lock);
++	raw = max77705_read_cc_stat(chg);
++	if (raw == chg->cc_stat_seen) {
++		if (chg->cc_stat_count < MAX77705_CC_DEBOUNCE)
++			chg->cc_stat_count++;
++	} else {
++		chg->cc_stat_seen = raw;
++		chg->cc_stat_count = 1;
++	}
++
++	/* boost: any change or read error stops it at once, no debounce */
++	max77705_boost_monitor(chg, raw);
++
++	if (raw >= 0 && chg->cc_stat_count >= MAX77705_CC_DEBOUNCE && raw != chg->cc_stat) {
++		chg->cc_stat = raw;
++		if (raw == MAX77705_CC_CCSTAT_SOURCE) {
++			max77705_set_role(chg, USB_ROLE_HOST);
++			max77705_boost_on(chg);
++		} else {
++			/* detach or a source attached: the fault latch ends here */
++			chg->boost_fault = false;
++			max77705_boost_off(chg, "detach");
++			max77705_set_role(chg, USB_ROLE_DEVICE);
++		}
++	}
++
++	if (chg->usbc_ready)
++		queue_delayed_work(system_wq, &chg->usbc_work,
++				   msecs_to_jiffies(MAX77705_USBC_POLL_MS));
++	mutex_unlock(&chg->lock);
++}
++
++static irqreturn_t max77705_byp_irq(int irq, void *irq_drv_data)
++{
++	struct max77705_charger_data *chg = irq_drv_data;
++
++	/* bypass / boost event (over-current): check now */
++	mutex_lock(&chg->lock);
++	if (chg->usbc_ready)
++		mod_delayed_work(system_wq, &chg->usbc_work, 0);
++	mutex_unlock(&chg->lock);
++
++	return IRQ_HANDLED;
++}
++
++static void max77705_usbc_stop(void *data)
++{
++	struct max77705_charger_data *chg = data;
++
++	mutex_lock(&chg->lock);
++	chg->usbc_ready = false;
++	max77705_boost_off(chg, "driver stop");
++	mutex_unlock(&chg->lock);
++	cancel_delayed_work_sync(&chg->usbc_work);
++	mutex_lock(&chg->lock);
++	max77705_boost_off(chg, "driver stop");
++	if (chg->role_sw) {
++		usb_role_switch_put(chg->role_sw);
++		chg->role_sw = NULL;
++	}
++	mutex_unlock(&chg->lock);
++}
++
++static ssize_t otg_vbus_show(struct device *dev, struct device_attribute *attr, char *buf)
++{
++	struct max77705_charger_data *chg = dev_get_drvdata(dev);
++
++	return sysfs_emit(buf, "%s%s\n", chg->otg_vbus_auto ? "auto" : "off",
++			  chg->boost_on ? " (on)" : chg->boost_fault ? " (fault)" : "");
++}
++
++static ssize_t otg_vbus_store(struct device *dev, struct device_attribute *attr,
++			      const char *buf, size_t count)
++{
++	struct max77705_charger_data *chg = dev_get_drvdata(dev);
++	bool on;
++
++	if (sysfs_streq(buf, "auto"))
++		on = true;
++	else if (sysfs_streq(buf, "off"))
++		on = false;
++	else
++		return -EINVAL;
++
++	mutex_lock(&chg->lock);
++	chg->otg_vbus_auto = on;
++	if (!on)
++		max77705_boost_off(chg, "disabled");
++	else if (chg->cc_stat == MAX77705_CC_CCSTAT_SOURCE)
++		max77705_boost_on(chg);
++	mutex_unlock(&chg->lock);
++
++	return count;
++}
++static DEVICE_ATTR_RW(otg_vbus);
++
++static ssize_t usb_role_auto_show(struct device *dev, struct device_attribute *attr, char *buf)
++{
++	struct max77705_charger_data *chg = dev_get_drvdata(dev);
++
++	return sysfs_emit(buf, "%d\n", chg->role_auto);
++}
++
++static ssize_t usb_role_auto_store(struct device *dev, struct device_attribute *attr,
++				   const char *buf, size_t count)
++{
++	struct max77705_charger_data *chg = dev_get_drvdata(dev);
++	bool on;
++
++	if (kstrtobool(buf, &on))
++		return -EINVAL;
++	mutex_lock(&chg->lock);
++	chg->role_auto = on;
++	chg->cc_stat = -1;	/* re-apply on the next poll */
++	mutex_unlock(&chg->lock);
++
++	return count;
++}
++static DEVICE_ATTR_RW(usb_role_auto);
++
++static struct attribute *max77705_usbc_attrs[] = {
++	&dev_attr_otg_vbus.attr,
++	&dev_attr_usb_role_auto.attr,
++	NULL
++};
++
++static const struct attribute_group max77705_usbc_group = {
++	.attrs = max77705_usbc_attrs,
++};
++
+ static void max77705_safety_work(struct work_struct *work)
+ {
+ 	struct max77705_charger_data *chg =
+@@ -1372,6 +1734,38 @@ static int max77705_charger_probe(struct i2c_client *i2c)
+ 	/* first check now: enables charging if everything is in range */
+ 	mod_delayed_work(system_wq, &chg->safety_work, 0);
+ 
++	/* USB-C data role and VBUS output: needs the USB-C block and a role switch */
++	if (chg->usbc_adap && device_property_present(dev, "usb-role-switch")) {
++		INIT_DELAYED_WORK(&chg->usbc_work, max77705_usbc_work);
++		chg->role_auto = true;
++		chg->otg_vbus_auto = false;
++		chg->cc_stat = -1;
++		chg->cc_stat_seen = INT_MIN;
++		chg->otg_soc_min = MAX77705_OTG_SOC_MIN_DEFAULT;
++		device_property_read_u32(dev, "maxim,otg-min-capacity-percent",
++					 &chg->otg_soc_min);
++		chg->otg_soc_min = clamp(chg->otg_soc_min, 5U, 100U);
++
++		ret = devm_request_threaded_irq(dev, regmap_irq_get_virq(irq_data, MAX77705_BYP_I),
++						NULL, max77705_byp_irq, IRQF_TRIGGER_NONE,
++						"byp-irq", chg);
++		if (ret)
++			return ret;
++		ret = devm_device_add_group(dev, &max77705_usbc_group);
++		if (ret)
++			return ret;
++		/* registered last: runs first on unbind, VBUS output off */
++		ret = devm_add_action_or_reset(dev, max77705_usbc_stop, chg);
++		if (ret)
++			return ret;
++		mutex_lock(&chg->lock);
++		chg->usbc_ready = true;
++		mutex_unlock(&chg->lock);
++		mod_delayed_work(system_wq, &chg->usbc_work, 0);
++		dev_info(dev, "USB-C: data role from CC status, VBUS output off until enabled (900 mA, capacity >= %u %%)\n",
++			 chg->otg_soc_min);
++	}
++
+ 	dev_info(dev, "safety monitor: CC %u uA (DCP %u uA), CHGIN %u uA (DCP %u uA, Type-C 1.5/3 A %u/%u uA), CV reg 0x%x, battery %d..%d C, timer %u s, capacity %d..%d %%\n",
+ 		 chg->cc_sdp_ua, chg->cc_dcp_ua, chg->chgin_sdp_ua, chg->chgin_dcp_ua,
+ 		 chg->chgin_typec15_ua, chg->chgin_typec30_ua, chg->cv_reg,
+@@ -1381,6 +1775,18 @@ static int max77705_charger_probe(struct i2c_client *i2c)
+ 	return 0;
+ }
+ 
++static void max77705_charger_shutdown(struct i2c_client *i2c)
++{
++	struct max77705_charger_data *chg = i2c_get_clientdata(i2c);
++
++	if (!chg)
++		return;
++	mutex_lock(&chg->lock);
++	chg->usbc_ready = false;
++	max77705_boost_off(chg, "shutdown");
++	mutex_unlock(&chg->lock);
++}
++
+ static const struct of_device_id max77705_charger_of_match[] = {
+ 	{ .compatible = "maxim,max77705-charger" },
+ 	{ }
+@@ -1393,6 +1799,7 @@ static struct i2c_driver max77705_charger_driver = {
+ 		.of_match_table = max77705_charger_of_match,
+ 	},
+ 	.probe = max77705_charger_probe,
++	.shutdown = max77705_charger_shutdown,
+ };
+ module_i2c_driver(max77705_charger_driver);
+ 
+diff --git a/include/linux/power/max77705_charger.h b/include/linux/power/max77705_charger.h
+index cc49fc726..447867aef 100644
+--- a/include/linux/power/max77705_charger.h
++++ b/include/linux/power/max77705_charger.h
+@@ -13,6 +13,8 @@
+ #include <linux/mutex.h>
+ #include <linux/workqueue.h>
+ 
++struct usb_role_switch;
++
+ struct iio_channel;
+ 
+ /* MAX77705_CHG_REG_CHG_INT */
+@@ -230,6 +232,23 @@ struct max77705_charger_data {
+ 	unsigned int		chgin_typec15_ua; /* Type-C Rp 1.5 A seen; 0 = not used */
+ 	unsigned int		chgin_typec30_ua; /* Type-C Rp 3.0 A seen; 0 = not used */
+ 	unsigned int		typec_adv_ma;	/* last Type-C advertisement used, 0 = none */
++
++	/*
++	 * USB-C data role and VBUS output (optional, needs the safety monitor,
++	 * the USB-C block and a "usb-role-switch" reference). All under lock.
++	 */
++	struct usb_role_switch	*role_sw;
++	struct delayed_work	usbc_work;
++	bool			usbc_ready;
++	bool			role_auto;	/* follow the USB-C attach state */
++	int			cc_stat;	/* debounced CCStat, -1 unknown */
++	int			cc_stat_seen;	/* last raw CCStat */
++	int			cc_stat_count;	/* consecutive equal reads */
++	bool			otg_vbus_auto;	/* boost allowed (sysfs, default off) */
++	bool			boost_on;	/* we turned the OTG boost on */
++	bool			boost_fault;	/* tripped: no boost until detach */
++	unsigned int		otg_soc_min;	/* no boost below this capacity, % */
++	unsigned long		boost_offs;
+ 	struct i2c_adapter	*usbc_adap;	/* USB-C block, read only, not claimed */
+ 	int			usb_type;
+ 	unsigned int		cv_reg;		/* encoded target, from DT */
+-- 
+2.56.0
+

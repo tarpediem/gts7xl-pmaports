@@ -1,0 +1,47 @@
+From 65e1d27075d065d91fc64e8e8ff20d752ef6733b Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Wed, 18 Nov 2026 22:47:46 +0700
+Subject: [PATCH 47/47] arm64: dts: qcom: sm8250-samsung-gts7xl: USB dual role
+
+dwc3 in OTG mode with a role switch, device by default; the charger
+sets the role from the USB-C block's attach state (and may supply VBUS
+when enabled from userspace, battery at 15 % or more).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts | 12 +++++++++++-
+ 1 file changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+index 069f1f290..816b8d37e 100644
+--- a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
++++ b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+@@ -669,6 +669,9 @@ max77705_charger: charger@69 {
+ 		 */
+ 		maxim,typec-1500ma-input-current-limit-microamp = <1400000>;
+ 		maxim,typec-3000ma-input-current-limit-microamp = <3000000>;
++		/* data role from the USB-C attach state; VBUS output off until enabled */
++		usb-role-switch = <&usb_1_dwc3>;
++		maxim,otg-min-capacity-percent = <15>;
+ 		maxim,safety-timer-sec = <36000>;
+ 	};
+ 
+@@ -1307,7 +1310,14 @@ &usb_1 {
+ };
+ 
+ &usb_1_dwc3 {
+-	dr_mode = "peripheral";
++	/*
++	 * Dual role: device by default (gadget networking with a PC); the
++	 * charger driver sets host when the USB-C block reports a sink
++	 * attached (OTG adapter, hub), or by hand in /sys/class/usb_role.
++	 */
++	dr_mode = "otg";
++	usb-role-switch;
++	role-switch-default-mode = "peripheral";
+ 	maximum-speed = "high-speed";
+ 	phys = <&usb_1_hsphy>;
+ 	phy-names = "usb2-phy";
+-- 
+2.56.0
+
