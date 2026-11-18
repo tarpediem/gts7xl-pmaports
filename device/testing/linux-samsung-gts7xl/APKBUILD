@@ -2,7 +2,7 @@
 # Kernel config based on: linux-postmarketos-qcom-sm8250 (refreshed with olddefconfig)
 pkgname=linux-samsung-gts7xl
 pkgver=7.3.4
-pkgrel=50
+pkgrel=51
 pkgdesc="Mainline kernel for Samsung Galaxy Tab S7+ 5G (gts7xl)"
 arch="aarch64"
 _carch="arm64"
@@ -72,6 +72,8 @@ source="https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-$pkgver.tar.xz
 	0037-media-i2c-s5k3m5-probe-with-a-19.2-MHz-MCLK-stream-o.patch
 	0038-arm64-dts-qcom-sm8250-samsung-gts7xl-rearcam-stock-1.patch
 	0039-Input-wacom_w90xx-gts7xl-DT-axis-ranges-from-the-chi.patch
+	0040-Input-wacom_w90xx-reset-the-chip-at-probe-leave-surv.patch
+	0041-arm64-dts-qcom-sm8250-samsung-gts7xl-no-remote-heap-.patch
 	"
 builddir="$srcdir/linux-$pkgver"
 
@@ -154,4 +156,6 @@ a8857fe5fc086fca5e6abc52d31e736755133dbd50a25a03a7b2b6d444bde380a4ba816b1fafcfad
 1546fd5acf71c7d79aea225b53d51528878fa52670207414ab656e14293fca7e9e178bf59436f30e2d137e06fae9a72fdb45d2cd9eaa922f6d38e835c263e236  0037-media-i2c-s5k3m5-probe-with-a-19.2-MHz-MCLK-stream-o.patch
 8f20a2a44ada6a4171bff9068dc1cf477b22c05a071856f245f55e51f47778a427af2de92452be95c0211c71f1107d452a265a33aa4ff9dc7945d73358ae56aa  0038-arm64-dts-qcom-sm8250-samsung-gts7xl-rearcam-stock-1.patch
 f5a35b0e2a42d5ebecab8c9e9a31f92158602fbad18aece8eefa13131d0f98ddd2436350c30612b7e40b347cb675dba230896266285f2529c75033a8e76e66d9  0039-Input-wacom_w90xx-gts7xl-DT-axis-ranges-from-the-chi.patch
+27c93c253c8a598cb7f4fdd9b3b8369e7b0eddfd66e2a358cea249db812d496efd37fa6f9cc660890720fc97068869d00ea4756d672cd89580db2cd0e863506f  0040-Input-wacom_w90xx-reset-the-chip-at-probe-leave-surv.patch
+0c34b47dbf10aa73e71a2d8e822443f2a393a88bd4a39ef5cec2b30917e4e71007cd51beb52fd5815b2a803e70e1d13cd3594a205ac28b6626a333d114c143df  0041-arm64-dts-qcom-sm8250-samsung-gts7xl-no-remote-heap-.patch
 "
