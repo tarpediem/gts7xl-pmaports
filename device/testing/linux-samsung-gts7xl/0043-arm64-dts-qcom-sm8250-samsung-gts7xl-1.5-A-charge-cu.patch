@@ -1,0 +1,38 @@
+From 7bb5de6f56c3ad535b4dd2f19bb0abc08f63243b Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Wed, 18 Nov 2026 08:14:47 +0700
+Subject: [PATCH 43/43] arm64: dts: qcom: sm8250-samsung-gts7xl: 1.5 A charge
+ current on a wall charger
+
+Stock charges at 2100 mA on a Samsung TA (cable-info
+default_charging_current 0x834); use 1500 mA on a detected DCP. Every
+other cable keeps 450 mA. CV, temperature window and timer unchanged.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+index d4c4dab68..6711f573f 100644
+--- a/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
++++ b/arch/arm64/boot/dts/qcom/sm8250-samsung-gts7xl.dts
+@@ -654,10 +654,13 @@ max77705_charger: charger@69 {
+ 		input-current-limit-microamp = <475000>;
+ 		/*
+ 		 * Wall charger (BC1.2 DCP, read from the USB-C block): 1800 mA,
+-		 * the stock cable-info default_input_current (0x708). Battery-side
+-		 * limits are unchanged; anything not positively a DCP gets 475 mA.
++		 * the stock cable-info default_input_current (0x708), and 1500 mA
++		 * charge current. Anything not positively a DCP gets 475 mA input
++		 * and the battery's 450 mA. CV, temperatures, timer unchanged.
+ 		 */
+ 		maxim,dcp-input-current-limit-microamp = <1800000>;
++		/* stock charges at 2100 mA on a TA (cable-info default_charging_current) */
++		maxim,dcp-constant-charge-current-microamp = <1500000>;
+ 		maxim,safety-timer-sec = <36000>;
+ 	};
+ 
+-- 
+2.56.0
+
