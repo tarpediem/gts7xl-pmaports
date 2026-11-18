@@ -1,0 +1,212 @@
+From 7173fdcd7471234c253c440d55ece9f73abe4b3b Mon Sep 17 00:00:00 2001
+From: tarpediem <tarpediem@gmail.com>
+Date: Wed, 18 Nov 2026 08:39:32 +0700
+Subject: [PATCH 44/45] power: supply: max77705: input limit from the Type-C
+ current advertisement
+
+With the safety monitor and the USB-C block in use, the charger also
+reads CC_STATUS0 of the USB-C block (read only, address not claimed, as
+for BC_STATUS). While VBUS is present and the tablet is the sink, a
+source advertising 1.5 A or 3.0 A (CCIStat) raises the input limit to
+maxim,typec-1500ma-input-current-limit-microamp or
+maxim,typec-3000ma-input-current-limit-microamp (driver ceilings 1.4 A
+and 3.0 A, the stock values). The result is the larger of the BC1.2
+value and the Type-C value, so a Type-C reading never lowers it; default
+Rp, another attach state or a read error leave the BC1.2 value. The
+charge current still follows BC1.2 only. The bounded AICL handler and
+the "at or under the reference" check are unchanged.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../bindings/power/supply/maxim,max77705.yaml | 15 ++++
+ drivers/power/supply/max77705_charger.c       | 77 +++++++++++++++++--
+ include/linux/power/max77705_charger.h        |  3 +
+ 3 files changed, 89 insertions(+), 6 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/power/supply/maxim,max77705.yaml b/Documentation/devicetree/bindings/power/supply/maxim,max77705.yaml
+index efc022dfd..70d1f5d1a 100644
+--- a/Documentation/devicetree/bindings/power/supply/maxim,max77705.yaml
++++ b/Documentation/devicetree/bindings/power/supply/maxim,max77705.yaml
+@@ -46,6 +46,19 @@ properties:
+       every other cable, or an unreadable status, gets
+       input-current-limit-microamp.
+ 
++  maxim,typec-1500ma-input-current-limit-microamp:
++    description:
++      With the battery thermistor and DCP detection, input limit used while
++      the USB-C block reports the tablet as the sink of a source advertising
++      1.5 A (Type-C Rp); the larger of this and the BC1.2 value applies.
++    maximum: 1400000
++
++  maxim,typec-3000ma-input-current-limit-microamp:
++    description:
++      As maxim,typec-1500ma-input-current-limit-microamp, for a source
++      advertising 3.0 A.
++    maximum: 3000000
++
+   maxim,dcp-constant-charge-current-microamp:
+     description:
+       With the battery thermistor and DCP detection, charge current used
+@@ -64,6 +77,8 @@ dependencies:
+   maxim,safety-timer-sec: [ io-channels ]
+   maxim,dcp-input-current-limit-microamp: [ io-channels, input-current-limit-microamp ]
+   maxim,dcp-constant-charge-current-microamp: [ maxim,dcp-input-current-limit-microamp ]
++  maxim,typec-1500ma-input-current-limit-microamp: [ maxim,dcp-input-current-limit-microamp ]
++  maxim,typec-3000ma-input-current-limit-microamp: [ maxim,dcp-input-current-limit-microamp ]
+ 
+ required:
+   - compatible
+diff --git a/drivers/power/supply/max77705_charger.c b/drivers/power/supply/max77705_charger.c
+index e739b2feb..28cbbdf6e 100644
+--- a/drivers/power/supply/max77705_charger.c
++++ b/drivers/power/supply/max77705_charger.c
+@@ -7,6 +7,7 @@
+  * Battery charger driver for MAXIM 77705 charger/power-supply.
+  */
+ 
++#include <linux/bitfield.h>
+ #include <linux/devm-helpers.h>
+ #include <linux/i2c.h>
+ #include <linux/iio/consumer.h>
+@@ -38,6 +39,16 @@ static const char *max77705_charger_manufacturer	= "Maxim Integrated";
+ #define MAX77705_BC_CHGTYP_CDP		2
+ #define MAX77705_BC_CHGTYP_DCP		3
+ #define MAX77705_BC_VBUSDET		BIT(7)
++/* CC_STATUS0, as the vendor max77705_cc driver reads it */
++#define MAX77705_USBC_REG_CC_STATUS0	0x0a
++#define MAX77705_CC_CCISTAT		GENMASK(5, 4)	/* source advertisement */
++#define MAX77705_CC_CCISTAT_1_5A	2
++#define MAX77705_CC_CCISTAT_3_0A	3
++#define MAX77705_CC_CCSTAT		GENMASK(2, 0)	/* attach state */
++#define MAX77705_CC_CCSTAT_SINK		1
++/* ceilings for the Type-C input limits (stock: Rp 1.5 A 1400 mA, Rp 3 A 3000 mA) */
++#define MAX77705_TYPEC15_CEIL_UA	1400000
++#define MAX77705_TYPEC30_CEIL_UA	3000000
+ #define MAX77705_SOC_END_DEFAULT	80	/* % of capacity, battery longevity */
+ #define MAX77705_SOC_START_DEFAULT	75
+ /*
+@@ -835,12 +846,43 @@ static int max77705_charger_initialize(struct max77705_charger_data *chg)
+ 
+ }
+ 
++/*
++ * Type-C current advertisement of the attached source (CC_STATUS0 of the
++ * USB-C block, read only, unclaimed like BC_STATUS). Used only while the
++ * tablet is the sink: Rp 3.0 A gives chgin_typec30_ua, Rp 1.5 A
++ * chgin_typec15_ua. Default Rp, another attach state or a read error give 0
++ * (the cable value stays).
++ */
++static unsigned int max77705_typec_input_limit(struct max77705_charger_data *chg)
++{
++	union i2c_smbus_data data;
++	unsigned int ua = 0, ma = 0;
++
++	if (!i2c_smbus_xfer(chg->usbc_adap, MAX77705_USBC_ADDR, 0, I2C_SMBUS_READ,
++			    MAX77705_USBC_REG_CC_STATUS0, I2C_SMBUS_BYTE_DATA, &data) &&
++	    FIELD_GET(MAX77705_CC_CCSTAT, data.byte) == MAX77705_CC_CCSTAT_SINK) {
++		switch (FIELD_GET(MAX77705_CC_CCISTAT, data.byte)) {
++		case MAX77705_CC_CCISTAT_3_0A:
++			ma = 3000;
++			ua = chg->chgin_typec30_ua;
++			break;
++		case MAX77705_CC_CCISTAT_1_5A:
++			ma = 1500;
++			ua = chg->chgin_typec15_ua;
++			break;
++		}
++	}
++	chg->typec_adv_ma = ua ? ma : 0;
++	return ua;
++}
++
+ /*
+  * BC1.2 result of the USB-C block's firmware (BC_STATUS, read only, the
+  * address is not claimed so the initramfs MUIC hook keeps using it).
+  * Returns the input limit for this cable: the DCP value only when a DCP is
+  * positively detected with VBUS present, the SDP value otherwise, read
+- * errors included.
++ * errors included. With VBUS present, a Type-C advertisement read as a sink
++ * can raise this (the larger of the two), never lower it.
+  */
+ static unsigned int max77705_cable_input_limit(struct max77705_charger_data *chg)
+ {
+@@ -865,6 +907,10 @@ static unsigned int max77705_cable_input_limit(struct max77705_charger_data *chg
+ 				ua = chg->chgin_dcp_ua;
+ 			break;
+ 		}
++		/* VBUS is present: the Type-C advertisement may raise it, never lower it */
++		ua = max(ua, max77705_typec_input_limit(chg));
++	} else {
++		chg->typec_adv_ma = 0;
+ 	}
+ 	WRITE_ONCE(chg->usb_type, type);
+ 	return ua;
+@@ -1058,11 +1104,13 @@ static void max77705_safety_check(struct max77705_charger_data *chg)
+ 	if (chg->chgin_sdp_ua) {
+ 		unsigned int ref = online ? max77705_cable_input_limit(chg) : chg->chgin_sdp_ua;
+ 
+-		if (!online)
++		if (!online) {
+ 			WRITE_ONCE(chg->usb_type, POWER_SUPPLY_USB_TYPE_UNKNOWN);
++			chg->typec_adv_ma = 0;
++		}
+ 		if (ref != chg->chgin_max_ua) {
+-			dev_info(chg->dev, "input limit %u uA (USB type %d)\n", ref,
+-				 READ_ONCE(chg->usb_type));
++			dev_info(chg->dev, "input limit %u uA (USB type %d, Type-C %u mA)\n",
++				 ref, READ_ONCE(chg->usb_type), chg->typec_adv_ma);
+ 			chg->chgin_max_ua = ref;
+ 			if (regmap_field_write(chg->rfield[MAX77705_CHG_CHGIN_LIM],
+ 					       max77705_chgin_ua_to_reg(ref)))
+@@ -1231,6 +1279,22 @@ static int max77705_charger_probe(struct i2c_client *i2c)
+ 	    !device_property_read_u32(dev, "maxim,dcp-input-current-limit-microamp",
+ 				      &chg->chgin_dcp_ua))
+ 		chg->usbc_adap = i2c->adapter;
++	if (chg->usbc_adap &&
++	    !device_property_read_u32(dev, "maxim,typec-1500ma-input-current-limit-microamp",
++				      &chg->chgin_typec15_ua) &&
++	    chg->chgin_typec15_ua > MAX77705_TYPEC15_CEIL_UA) {
++		dev_warn(dev, "Type-C 1.5 A input limit %u uA above %u uA, not used\n",
++			 chg->chgin_typec15_ua, MAX77705_TYPEC15_CEIL_UA);
++		chg->chgin_typec15_ua = 0;
++	}
++	if (chg->usbc_adap &&
++	    !device_property_read_u32(dev, "maxim,typec-3000ma-input-current-limit-microamp",
++				      &chg->chgin_typec30_ua) &&
++	    chg->chgin_typec30_ua > MAX77705_TYPEC30_CEIL_UA) {
++		dev_warn(dev, "Type-C 3 A input limit %u uA above %u uA, not used\n",
++			 chg->chgin_typec30_ua, MAX77705_TYPEC30_CEIL_UA);
++		chg->chgin_typec30_ua = 0;
++	}
+ 	if (chg->usbc_adap &&
+ 	    !device_property_read_u32(dev, "maxim,dcp-constant-charge-current-microamp",
+ 				      &chg->cc_dcp_ua) &&
+@@ -1308,8 +1372,9 @@ static int max77705_charger_probe(struct i2c_client *i2c)
+ 	/* first check now: enables charging if everything is in range */
+ 	mod_delayed_work(system_wq, &chg->safety_work, 0);
+ 
+-	dev_info(dev, "safety monitor: CC %u uA (DCP %u uA), CHGIN %u uA (DCP %u uA), CV reg 0x%x, battery %d..%d C, timer %u s, capacity %d..%d %%\n",
+-		 chg->cc_sdp_ua, chg->cc_dcp_ua, chg->chgin_sdp_ua, chg->chgin_dcp_ua, chg->cv_reg,
++	dev_info(dev, "safety monitor: CC %u uA (DCP %u uA), CHGIN %u uA (DCP %u uA, Type-C 1.5/3 A %u/%u uA), CV reg 0x%x, battery %d..%d C, timer %u s, capacity %d..%d %%\n",
++		 chg->cc_sdp_ua, chg->cc_dcp_ua, chg->chgin_sdp_ua, chg->chgin_dcp_ua,
++		 chg->chgin_typec15_ua, chg->chgin_typec30_ua, chg->cv_reg,
+ 		 chg->bat_info->temp_alert_min, chg->bat_info->temp_alert_max,
+ 		 chg->safety_timer_s, chg->soc_start, chg->soc_end);
+ 
+diff --git a/include/linux/power/max77705_charger.h b/include/linux/power/max77705_charger.h
+index ffcc31408..cc49fc726 100644
+--- a/include/linux/power/max77705_charger.h
++++ b/include/linux/power/max77705_charger.h
+@@ -227,6 +227,9 @@ struct max77705_charger_data {
+ 	unsigned int		chgin_max_ua;	/* reference input limit now (per cable) */
+ 	unsigned int		chgin_sdp_ua;	/* default: USB SDP, CDP, unknown */
+ 	unsigned int		chgin_dcp_ua;	/* BC1.2 DCP detected; 0 = not used */
++	unsigned int		chgin_typec15_ua; /* Type-C Rp 1.5 A seen; 0 = not used */
++	unsigned int		chgin_typec30_ua; /* Type-C Rp 3.0 A seen; 0 = not used */
++	unsigned int		typec_adv_ma;	/* last Type-C advertisement used, 0 = none */
+ 	struct i2c_adapter	*usbc_adap;	/* USB-C block, read only, not claimed */
+ 	int			usb_type;
+ 	unsigned int		cv_reg;		/* encoded target, from DT */
+-- 
+2.56.0
+
